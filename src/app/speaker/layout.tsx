@@ -17,9 +17,8 @@ export default async function SpeakerLayout({ children }: { children: React.Reac
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "SPEAKER") {
-    redirect("/client/dashboard");
-  }
+  if (!profile) redirect("/login");
+  if (profile.role !== "SPEAKER") redirect("/client/dashboard");
 
   return (
     <div className="flex min-h-screen bg-cream">

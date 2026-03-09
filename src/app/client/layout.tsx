@@ -17,9 +17,8 @@ export default async function ClientLayout({ children }: { children: React.React
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "CLIENT") {
-    redirect("/speaker/dashboard");
-  }
+  if (!profile) redirect("/login");
+  if (profile.role !== "CLIENT") redirect("/speaker/dashboard");
 
   return (
     <div className="flex min-h-screen bg-cream">
