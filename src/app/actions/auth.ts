@@ -73,9 +73,13 @@ export async function loginUser(formData: FormData) {
     .eq("id", user.id)
     .single();
 
+  if (!profile?.role) {
+    return { error: "Profile not found. Please contact support." };
+  }
+
   revalidatePath("/", "layout");
 
-  if (profile?.role === "SPEAKER") {
+  if (profile.role === "SPEAKER") {
     redirect("/speaker/dashboard");
   } else {
     redirect("/client/dashboard");

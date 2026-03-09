@@ -33,18 +33,19 @@ export async function middleware(request: NextRequest) {
 
   // Redirect authenticated users away from auth pages
   if (user && (path === "/login" || path === "/register")) {
-    // Fetch role and redirect appropriately
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
 
-    const role = profile?.role;
-    if (role === "SPEAKER") {
+    if (profile?.role === "SPEAKER") {
       return NextResponse.redirect(new URL("/speaker/dashboard", request.url));
     }
-    return NextResponse.redirect(new URL("/client/dashboard", request.url));
+    if (profile?.role === "CLIENT") {
+      return NextResponse.redirect(new URL("/client/dashboard", request.url));
+    }
+    // No profile found — let user stay on login/register
   }
 
   // Protect client routes
@@ -58,8 +59,8 @@ export async function middleware(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (profile?.role !== "CLIENT") {
-      return NextResponse.redirect(new URL("/speaker/dashboard", request.url));
+    if (!profile || profile.role !== "CLIENT") {
+      return NextResponse.redirect(new URL("/login", request.url));
     }
   }
 
@@ -74,8 +75,8 @@ export async function middleware(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (profile?.role !== "SPEAKER") {
-      return NextResponse.redirect(new URL("/client/dashboard", request.url));
+    if (!profile || profile.role !== "SPEAKER") {
+      return NextResponse.redirect(new URL("/login", request.url));
     }
   }
 
