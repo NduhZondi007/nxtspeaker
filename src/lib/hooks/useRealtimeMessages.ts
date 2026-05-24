@@ -21,20 +21,19 @@ export function useRealtimeMessages(bookingId: string, initialMessages: Message[
           filter: `booking_id=eq.${bookingId}`,
         },
         async (payload) => {
-          // Fetch sender profile for the new message
+          // Select only what the chat UI needs — avoid leaking email/phone/company
           const { data: profile } = await supabase
             .from("profiles")
-            .select("*")
+            .select("id, full_name, avatar_url, role")
             .eq("id", payload.new.sender_id)
             .single();
 
           const newMessage: Message = {
             ...(payload.new as Message),
-            profiles: profile ?? undefined,
+            profiles: (profile ?? undefined) as Message["profiles"],
           };
 
           setMessages((prev) => {
-            // Avoid duplicates
             if (prev.some((m) => m.id === newMessage.id)) return prev;
             return [...prev, newMessage];
           });

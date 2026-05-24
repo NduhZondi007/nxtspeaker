@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 const BookingSchema = z.object({
   speaker_id: z.string().uuid(),
@@ -16,21 +16,18 @@ const BookingSchema = z.object({
   estimated_audience: z.number().int().positive().optional(),
   client_notes: z.string().optional(),
   hospitality_rider_agreed: z.boolean(),
-  quoted_fee_zar: z.number().positive(),
+  // quoted_fee_zar intentionally excluded — fetched server-side
 });
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Verify client role
+  // Explicit role check for a clear error message — RLS also enforces this
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
@@ -58,8 +55,20 @@ export async function POST(request: NextRequest) {
 
   const input = parsed.data;
 
-  const serviceClient = await createServiceClient();
-  const { data, error } = await serviceClient
+  // Look up the speaker's authoritative fee — never trust client-supplied values
+  const { data: speaker } = await supabase
+    .from("speaker_profiles")
+    .select("speaking_fee_zar")
+    .eq("id", input.speaker_id)
+    .eq("status", "ACTIVE")
+    .single();
+
+  if (!speaker) {
+    return NextResponse.json({ error: "Speaker not found or unavailable" }, { status: 404 });
+  }
+
+  // Use the regular (anon-key) client so RLS policies apply to the INSERT
+  const { data, error } = await supabase
     .from("bookings")
     .insert({
       client_id: user.id,
@@ -77,7 +86,7 @@ export async function POST(request: NextRequest) {
       client_notes: input.client_notes || null,
       hospitality_rider_agreed: input.hospitality_rider_agreed,
       hospitality_agreed_at: input.hospitality_rider_agreed ? new Date().toISOString() : null,
-      quoted_fee_zar: input.quoted_fee_zar,
+      quoted_fee_zar: speaker.speaking_fee_zar,
       status: "PENDING",
     })
     .select()

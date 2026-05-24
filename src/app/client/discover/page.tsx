@@ -37,66 +37,58 @@ export default function DiscoverPage() {
   const { success, error } = useToast();
   const supabase = createClient();
 
+  // Debounced fetch — 300 ms delay prevents a query on every keystroke.
+  // The `stale` flag cancels in-flight results if filters change again before the fetch completes.
   useEffect(() => {
-    loadSpeakers();
+    let stale = false;
+
+    const timer = setTimeout(async () => {
+      if (stale) return;
+      setLoading(true);
+
+      let query = supabase
+        .from("speaker_profiles")
+        .select("*, profiles(*)")
+        .eq("status", "ACTIVE");
+
+      if (filters.available !== null) query = query.eq("available", filters.available);
+      if (filters.minFee > 0)         query = query.gte("speaking_fee_zar", filters.minFee);
+      if (filters.maxFee < 200000)    query = query.lte("speaking_fee_zar", filters.maxFee);
+      if (filters.expertise.length > 0) query = query.overlaps("expertise", filters.expertise);
+      if (filters.format === "virtual") query = query.eq("virtual_available", true);
+      else if (filters.format === "hybrid") query = query.eq("hybrid_available", true);
+
+      switch (filters.sort) {
+        case "fee_asc":     query = query.order("speaking_fee_zar", { ascending: true });  break;
+        case "fee_desc":    query = query.order("speaking_fee_zar", { ascending: false }); break;
+        case "events_desc": query = query.order("total_events",     { ascending: false }); break;
+        default:            query = query.order("avg_rating",        { ascending: false });
+      }
+
+      const { data } = await query;
+      if (stale) return;
+
+      let results = (data ?? []) as SpeakerProfile[];
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        results = results.filter(
+          (sp) =>
+            sp.profiles?.full_name?.toLowerCase().includes(q) ||
+            sp.title?.toLowerCase().includes(q) ||
+            sp.expertise?.some((e) => e.toLowerCase().includes(q)) ||
+            sp.bio?.toLowerCase().includes(q)
+        );
+      }
+
+      setSpeakers(results);
+      setLoading(false);
+    }, 300);
+
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
   }, [filters]);
-
-  async function loadSpeakers() {
-    setLoading(true);
-    let query = supabase
-      .from("speaker_profiles")
-      .select("*, profiles(*)")
-      .eq("status", "ACTIVE");
-
-    if (filters.available !== null) {
-      query = query.eq("available", filters.available);
-    }
-    if (filters.minFee > 0) {
-      query = query.gte("speaking_fee_zar", filters.minFee);
-    }
-    if (filters.maxFee < 200000) {
-      query = query.lte("speaking_fee_zar", filters.maxFee);
-    }
-    if (filters.expertise.length > 0) {
-      query = query.overlaps("expertise", filters.expertise);
-    }
-    if (filters.format === "virtual") {
-      query = query.eq("virtual_available", true);
-    } else if (filters.format === "hybrid") {
-      query = query.eq("hybrid_available", true);
-    }
-
-    switch (filters.sort) {
-      case "fee_asc":
-        query = query.order("speaking_fee_zar", { ascending: true });
-        break;
-      case "fee_desc":
-        query = query.order("speaking_fee_zar", { ascending: false });
-        break;
-      case "events_desc":
-        query = query.order("total_events", { ascending: false });
-        break;
-      default:
-        query = query.order("avg_rating", { ascending: false });
-    }
-
-    const { data } = await query;
-    let results = (data ?? []) as SpeakerProfile[];
-
-    if (filters.search) {
-      const q = filters.search.toLowerCase();
-      results = results.filter(
-        (sp) =>
-          sp.profiles?.full_name?.toLowerCase().includes(q) ||
-          sp.title?.toLowerCase().includes(q) ||
-          sp.expertise?.some((e) => e.toLowerCase().includes(q)) ||
-          sp.bio?.toLowerCase().includes(q)
-      );
-    }
-
-    setSpeakers(results);
-    setLoading(false);
-  }
 
   async function handleSelectSpeaker(speaker: SpeakerProfile) {
     setSelectedSpeaker(speaker);
@@ -121,9 +113,9 @@ export default function DiscoverPage() {
 
   async function handleSubmitBooking(formData: BookingFormData) {
     if (!bookingSpeaker) return;
+    // quoted_fee_zar is looked up server-side — not passed from client
     const result = await createBooking({
       speaker_id: bookingSpeaker.id,
-      quoted_fee_zar: bookingSpeaker.speaking_fee_zar,
       ...formData,
     });
     if (result.error) {
@@ -160,11 +152,7 @@ export default function DiscoverPage() {
             </p>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {speakers.map((speaker) => (
-                <SpeakerCard
-                  key={speaker.id}
-                  speaker={speaker}
-                  onClick={handleSelectSpeaker}
-                />
+                <SpeakerCard key={speaker.id} speaker={speaker} onClick={handleSelectSpeaker} />
               ))}
             </div>
           </>
