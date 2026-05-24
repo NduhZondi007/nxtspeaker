@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npx supabase *)",
+      "Bash(npx playwright *)",
+      "Bash(npx vitest *)",
+      "Bash(git add *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git stash *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const lines = ['', '='.repeat(60), 'HANDOVER REMINDER', '='.repeat(60), 'Before closing this session, complete the handover ritual:', '  1. Summarise what was done this session', '  2. List any open / in-progress tasks with exact state', '  3. Append errors to docs/ERRORS.md', '  4. Update docs/CHANGELOG.md', '  5. Note key decisions and their rationale', '  6. State the first action for the next session', '  7. Run: git status  (confirm clean or intentional state)', '='.repeat(60), '']; console.log(lines.join('\\n'));\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const cmd = process.env.CLAUDE_TOOL_INPUT || ''; if (cmd.includes('git commit') && !cmd.includes('--allow-empty')) { const checks = ['Before committing, confirm you have run:', '  npm run type-check', '  npm run lint', '  npm run test:run', '  npm run build']; console.error(checks.join('\\n')); }\""
+          }
+        ]
+      }
+    ]
+  }
+}
