@@ -1,8 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+
+  // Skip Supabase if there are no auth cookies (nothing to refresh).
+  const hasSbSession = request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
+  if (!hasSbSession) {
+    return supabaseResponse;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,8 +31,16 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session — do not remove this call
-  await supabase.auth.getUser();
+  try {
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("supabase_timeout")), 4000)
+      ),
+    ]);
+  } catch {
+    // Supabase unreachable or timed out — continue without session refresh.
+  }
 
   return supabaseResponse;
 }

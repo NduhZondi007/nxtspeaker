@@ -8,31 +8,24 @@ import { formatZAR } from "@/lib/utils/currency";
 
 export default async function SpeakerBookingsPage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: sp } = await supabase
-    .from("speaker_profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  const { data: bookings } = await supabase
+  const { data: sp } = await supabase.from("speaker_profiles").select("id").eq("user_id", user.id).single();
+  const { data: bks } = await supabase
     .from("bookings")
     .select("*, profiles(*)")
     .eq("speaker_id", sp?.id ?? "")
     .order("event_date", { ascending: true });
+
+  const bookings = (bks ?? []) as any[];
 
   return (
     <div>
       <TopBar title="My Bookings" subtitle="All incoming booking requests" />
 
       <div className="p-6">
-        {!bookings || bookings.length === 0 ? (
+        {bookings.length === 0 ? (
           <div className="text-center py-20">
             <CalendarCheck size={40} className="text-warm-gray mx-auto mb-4" />
             <h3 className="font-cormorant text-2xl text-mid-gray font-semibold">No bookings yet</h3>
@@ -40,7 +33,7 @@ export default async function SpeakerBookingsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {bookings.map((booking) => (
+            {bookings.map((booking: any) => (
               <Link key={booking.id} href={`/speaker/bookings/${booking.id}`}>
                 <div className="bg-white border border-warm-gray rounded-2xl p-5 hover:border-gold/40 transition-all hover:-translate-y-0.5 cursor-pointer">
                   <div className="flex items-start gap-4">
@@ -50,7 +43,7 @@ export default async function SpeakerBookingsPage() {
                         <BookingStatusBadge status={booking.status} />
                       </div>
                       <p className="text-sm text-charcoal">
-                        {(booking as any).profiles?.full_name ?? "Client"} — {(booking as any).profiles?.company ?? ""}
+                        {booking.profiles?.full_name ?? "Client"} — {booking.profiles?.company ?? ""}
                       </p>
                       <p className="text-xs text-mid-gray mt-1">
                         {new Date(booking.event_date).toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" })} ·{" "}

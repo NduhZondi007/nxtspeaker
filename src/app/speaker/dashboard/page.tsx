@@ -10,33 +10,27 @@ import { updateBookingStatus } from "@/app/actions/bookings";
 
 export default async function SpeakerDashboardPage() {
   const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  const [{ data: profile }, { data: speakerProfile }] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("speaker_profiles").select("*").eq("user_id", user.id).single(),
+  ]);
 
-  const { data: speakerProfile } = await supabase
-    .from("speaker_profiles")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
-
-  const { data: bookings } = await supabase
+  const { data: bks } = await supabase
     .from("bookings")
     .select("*, profiles(*)")
     .eq("speaker_id", speakerProfile?.id ?? "")
     .order("created_at", { ascending: false });
 
-  const pending = bookings?.filter((b) => b.status === "PENDING") ?? [];
-  const confirmed = bookings?.filter((b) => ["CONFIRMED", "DEPOSIT_PAID"].includes(b.status)) ?? [];
-  const completed = bookings?.filter((b) => b.status === "COMPLETED") ?? [];
-  const totalEarnings = completed.reduce((sum, b) => sum + Number(b.quoted_fee_zar), 0);
+  const bookings = (bks ?? []) as any[];
 
-  // Profile completeness
+  const pending = bookings.filter((b) => b.status === "PENDING");
+  const confirmed = bookings.filter((b) => ["CONFIRMED", "DEPOSIT_PAID"].includes(b.status));
+  const completed = bookings.filter((b) => b.status === "COMPLETED");
+  const totalEarnings = completed.reduce((sum: number, b: any) => sum + Number(b.quoted_fee_zar), 0);
+
   const fields = [
     speakerProfile?.bio,
     speakerProfile?.expertise?.length,
@@ -45,11 +39,10 @@ export default async function SpeakerDashboardPage() {
     profile?.avatar_url,
     speakerProfile?.languages?.length,
   ];
-  const completedFields = fields.filter(Boolean).length;
-  const completeness = Math.round((completedFields / fields.length) * 100);
+  const completeness = Math.round((fields.filter(Boolean).length / fields.length) * 100);
 
   const stats = [
-    { label: "Total Bookings", value: String(bookings?.length ?? 0), icon: CalendarCheck, color: "#C9A96E" },
+    { label: "Total Bookings", value: String(bookings.length), icon: CalendarCheck, color: "#C9A96E" },
     { label: "Pending Requests", value: String(pending.length), icon: Clock, color: "#A88C7C" },
     { label: "Confirmed Events", value: String(confirmed.length), icon: CheckCircle, color: "#6B9E78" },
     { label: "Total Earnings", value: formatZAR(totalEarnings), icon: DollarSign, color: "#8C7CA8" },
@@ -73,7 +66,6 @@ export default async function SpeakerDashboardPage() {
       />
 
       <div className="p-6 space-y-6">
-        {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((stat) => {
             const Icon = stat.icon;
@@ -89,15 +81,12 @@ export default async function SpeakerDashboardPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          {/* Pending requests */}
           <div className="lg:col-span-2 bg-white border border-warm-gray rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-warm-gray">
               <h2 className="font-cormorant text-lg font-semibold text-ink">
                 Incoming Requests
                 {pending.length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 text-xs bg-gold/20 text-gold rounded-full">
-                    {pending.length}
-                  </span>
+                  <span className="ml-2 px-2 py-0.5 text-xs bg-gold/20 text-gold rounded-full">{pending.length}</span>
                 )}
               </h2>
               <Link href="/speaker/bookings">
@@ -112,13 +101,13 @@ export default async function SpeakerDashboardPage() {
               </div>
             ) : (
               <div className="divide-y divide-warm-gray">
-                {pending.map((booking) => (
+                {pending.map((booking: any) => (
                   <div key={booking.id} className="px-5 py-4">
                     <div className="flex items-start gap-4">
                       <div className="flex-1 min-w-0">
                         <p className="font-semibold text-charcoal">{booking.event_name}</p>
                         <p className="text-xs text-mid-gray mt-0.5">
-                          {(booking as any).profiles?.full_name ?? "Client"} ·{" "}
+                          {booking.profiles?.full_name ?? "Client"} ·{" "}
                           {new Date(booking.event_date).toLocaleDateString("en-ZA")}
                         </p>
                         <p className="text-xs text-mid-gray">{booking.exact_location} · {booking.event_format}</p>
@@ -135,9 +124,7 @@ export default async function SpeakerDashboardPage() {
                         <Button type="submit" variant="outline" size="sm">Decline</Button>
                       </form>
                       <Link href={`/speaker/bookings/${booking.id}`}>
-                        <Button variant="ghost" size="sm">
-                          View <ChevronRight size={12} />
-                        </Button>
+                        <Button variant="ghost" size="sm">View <ChevronRight size={12} /></Button>
                       </Link>
                     </div>
                   </div>
@@ -146,33 +133,22 @@ export default async function SpeakerDashboardPage() {
             )}
           </div>
 
-          {/* Profile completeness + upcoming */}
           <div className="space-y-4">
-            {/* Profile completeness */}
             <div className="bg-white border border-warm-gray rounded-2xl p-5">
               <h2 className="font-cormorant text-lg font-semibold text-ink mb-3">Profile Completeness</h2>
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex-1 h-2 bg-warm-gray rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${completeness}%`,
-                      background: "linear-gradient(90deg, #C9A96E, #8B6A35)",
-                    }}
-                  />
+                  <div className="h-full rounded-full transition-all" style={{ width: `${completeness}%`, background: "linear-gradient(90deg, #C9A96E, #8B6A35)" }} />
                 </div>
                 <span className="text-sm font-bold text-gold">{completeness}%</span>
               </div>
               {completeness < 100 && (
                 <Link href="/speaker/profile">
-                  <Button variant="outline" size="sm" className="w-full mt-2">
-                    Complete Profile
-                  </Button>
+                  <Button variant="outline" size="sm" className="w-full mt-2">Complete Profile</Button>
                 </Link>
               )}
             </div>
 
-            {/* Upcoming events */}
             <div className="bg-white border border-warm-gray rounded-2xl overflow-hidden">
               <div className="px-5 py-4 border-b border-warm-gray">
                 <h2 className="font-cormorant text-lg font-semibold text-ink">Upcoming Events</h2>
@@ -183,7 +159,7 @@ export default async function SpeakerDashboardPage() {
                 </div>
               ) : (
                 <div className="divide-y divide-warm-gray">
-                  {confirmed.slice(0, 3).map((b) => (
+                  {confirmed.slice(0, 3).map((b: any) => (
                     <Link key={b.id} href={`/speaker/bookings/${b.id}`}>
                       <div className="flex items-center gap-3 px-4 py-3 hover:bg-cream/60 transition-colors">
                         <div className="w-9 h-9 rounded-lg bg-gold/10 flex flex-col items-center justify-center shrink-0">

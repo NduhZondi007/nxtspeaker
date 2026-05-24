@@ -9,7 +9,22 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}/`);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        if (profile?.role === "SPEAKER") {
+          return NextResponse.redirect(`${origin}/speaker/dashboard`);
+        }
+        return NextResponse.redirect(`${origin}/client/dashboard`);
+      }
     }
   }
 

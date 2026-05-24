@@ -31,33 +31,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
 
     async function init() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", session.user.id)
-          .single();
+        if (session?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
 
-        setState({
-          user: session.user,
-          session,
-          profile: profile ?? null,
-          loading: false,
-        });
-      } else {
+          setState({ user: session.user, session, profile: profile ?? null, loading: false });
+        } else {
+          setState({ user: null, session: null, profile: null, loading: false });
+        }
+      } catch {
         setState({ user: null, session: null, profile: null, loading: false });
       }
     }
 
     init();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -65,12 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq("id", session.user.id)
           .single();
 
-        setState({
-          user: session.user,
-          session,
-          profile: profile ?? null,
-          loading: false,
-        });
+        setState({ user: session.user, session, profile: profile ?? null, loading: false });
       } else {
         setState({ user: null, session: null, profile: null, loading: false });
       }

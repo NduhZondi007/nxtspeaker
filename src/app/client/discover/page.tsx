@@ -83,7 +83,6 @@ export default function DiscoverPage() {
     const { data } = await query;
     let results = (data ?? []) as SpeakerProfile[];
 
-    // Client-side text search
     if (filters.search) {
       const q = filters.search.toLowerCase();
       results = results.filter(
@@ -111,7 +110,6 @@ export default function DiscoverPage() {
 
   async function handleBook(speaker: SpeakerProfile) {
     setSelectedSpeaker(null);
-    // Fetch rider
     const { data: rider } = await supabase
       .from("hospitality_riders")
       .select("*")
@@ -173,7 +171,6 @@ export default function DiscoverPage() {
         )}
       </div>
 
-      {/* Speaker modal */}
       <SpeakerModal
         speaker={selectedSpeaker}
         reviews={speakerReviews}
@@ -181,7 +178,6 @@ export default function DiscoverPage() {
         onBook={handleBook}
       />
 
-      {/* Booking form modal */}
       {bookingSpeaker && profile && (
         <Modal open={!!bookingSpeaker} onClose={() => setBookingSpeaker(null)} maxWidth="2xl">
           <BookingForm
