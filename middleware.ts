@@ -2,99 +2,65 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
-  // Guard: missing env vars would cause an unrecoverable edge-runtime crash
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    console.error("Supabase env vars are not set — middleware skipped");
+  // Top-level guard — any uncaught error becomes MIDDLEWARE_INVOCATION_FAILED
+  try {
+    if (
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+      return NextResponse.next({ request });
+    }
+
+    let supabaseResponse = NextResponse.next({ request });
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            supabaseResponse = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
+        },
+      }
+    );
+
+    // Refresh session cookie — required by @supabase/ssr on every request.
+    // No DB queries here; role enforcement lives in the server layouts.
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const path = request.nextUrl.pathname;
+    const isProtected =
+      path.startsWith("/client") || path.startsWith("/speaker");
+    const isAuthPage = path === "/login" || path === "/register";
+
+    if (isProtected && !user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+
+    // Authenticated users on auth pages → home page handles role routing
+    if (isAuthPage && user) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+
+    return supabaseResponse;
+  } catch {
+    // Never let the middleware crash — pass through and let the page handle it
     return NextResponse.next({ request });
   }
-
-  let supabaseResponse = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
-
-  let user = null;
-  try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
-  } catch {
-    // Auth failure should not crash the middleware — treat as unauthenticated
-    return supabaseResponse;
-  }
-
-  const path = request.nextUrl.pathname;
-
-  // Redirect authenticated users away from auth pages
-  if (user && (path === "/login" || path === "/register")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profile?.role === "SPEAKER") {
-      return NextResponse.redirect(new URL("/speaker/dashboard", request.url));
-    }
-    if (profile?.role === "CLIENT") {
-      return NextResponse.redirect(new URL("/client/dashboard", request.url));
-    }
-    // No profile found — let user stay on login/register
-  }
-
-  // Protect client routes
-  if (path.startsWith("/client")) {
-    if (!user) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || profile.role !== "CLIENT") {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-  }
-
-  // Protect speaker routes
-  if (path.startsWith("/speaker")) {
-    if (!user) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (!profile || profile.role !== "SPEAKER") {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-  }
-
-  return supabaseResponse;
 }
 
 export const config = {
