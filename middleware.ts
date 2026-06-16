@@ -1,8 +1,11 @@
 // type-only — erased at build time, no CJS wrapper risk
 import type { NextRequest } from "next/server";
-// Direct ESM path: avoids next/server.js (CJS) whose Turbopack shim injects
-// __dirname, which is undefined in Edge Runtime (V8 isolate).
-import { NextResponse } from "next/dist/esm/server/web/exports/index.js";
+// Direct ESM path to the class itself — avoids next/server.js (CJS) whose
+// Turbopack shim injects __dirname (undefined in Edge Runtime), and avoids
+// next/dist/esm/server/web/exports/index.js which re-exports `after` and
+// `connection`, pulling in app-render modules that use Import Attributes
+// syntax unsupported by Vercel's esbuild.
+import { NextResponse } from "next/dist/esm/server/web/spec-extension/response.js";
 
 // Middleware only handles routing — it does NOT enforce security.
 // Real auth + role verification happens in server layouts via supabase.auth.getUser().
