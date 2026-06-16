@@ -17,6 +17,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - `docs/CHANGELOG.md` — this file
 
 ### Fixed
+- `middleware.ts` — import `NextResponse` from `next/dist/esm/server/web/spec-extension/response.js`
+  to avoid CJS Turbopack `__dirname` shim crash in Edge Runtime and avoid Import Attributes
+  syntax error from `next/dist/esm/server/web/exports/index.js`
+- `src/types/next-server-edge.d.ts` — updated module declaration to match new import path
 - `middleware.ts` — guard against missing Supabase env vars to prevent
   `MIDDLEWARE_INVOCATION_FAILED` on Vercel Edge Runtime
 - `middleware.ts` — wrap `supabase.auth.getUser()` in `try/catch` so auth

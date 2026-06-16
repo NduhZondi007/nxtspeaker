@@ -5,6 +5,81 @@ Append entries in reverse-chronological order (newest first).
 
 ---
 
+## 2026-06-16 · infrastructure · Vercel build failure — Import Attributes syntax in Next.js ESM tree
+
+**Type:** infrastructure / config
+**Affected:** `middleware.ts`, `src/types/next-server-edge.d.ts`, Vercel production build
+**Severity:** critical (build failing; site deployed at old broken version)
+
+**What happened:**
+After changing `middleware.ts` to import from `next/dist/esm/server/web/exports/index.js`
+(to avoid the CJS `__dirname` crash), the Vercel production build failed with three
+esbuild syntax errors in Next.js internal files:
+
+```
+next/dist/esm/server/app-render/after-task-async-storage.external.js:2:109:
+  ERROR: Expected ";" but found "with"
+```
+
+**Root cause:**
+`next/dist/esm/server/web/exports/index.js` re-exports `after` and `connection` in
+addition to `NextResponse`. The `after` export imports from `../../after`, which
+transitively pulls in `app-render` async-storage modules. Those modules use
+Import Attributes syntax (`import ... with { type: 'commonjs' }`), a newer JS feature
+that Vercel's esbuild-based edge bundler does not support.
+
+**Fix:**
+Changed import to `next/dist/esm/server/web/spec-extension/response.js` — the file
+that directly defines `NextResponse`. Its transitive dependencies are only cookies,
+URL parsing, and response utilities; zero `app-render` or Import Attributes syntax.
+Updated `src/types/next-server-edge.d.ts` to declare the new module path. Both
+`npm run type-check` and `npm run build` pass cleanly.
+
+**Prevention:**
+When importing deep into Next.js internal paths, target the narrowest file that
+exports only what you need. Index files (like `exports/index.js`) often re-export
+server-only modules with incompatible syntax for the Edge Runtime bundler.
+
+---
+
+## 2026-06-16 · infrastructure · MIDDLEWARE_INVOCATION_FAILED — ReferenceError: __dirname
+
+**Type:** infrastructure / config
+**Affected:** `middleware.ts`, Vercel production deployment (all requests)
+**Severity:** critical (site completely down — every request returned 500)
+
+**What happened:**
+Every request to `imvunulo.co.za` returned HTTP 500 with error code
+`MIDDLEWARE_INVOCATION_FAILED`. The Edge Runtime crashed on every hit due to
+`ReferenceError: __dirname is not defined`.
+
+**Root cause:**
+`next/server` (the module imported by `middleware.ts`) resolves to
+`node_modules/next/server.js`, which is CommonJS (`module.exports = ...`).
+On Vercel's Linux/Node 24 Turbopack production build, CJS modules are wrapped in a
+Node.js-style module shim that injects `__dirname`. The Edge Runtime is a V8 isolate
+and does not provide `__dirname`, so the shim throws on module load. The issue does
+not reproduce on Windows (local dev) because Turbopack's native binary handles
+CJS-to-Edge wrapping differently per platform.
+
+A previous fix attempt used `turbopack.resolveAlias` in `next.config.ts` to redirect
+`next/server` to the ESM path. This silently failed: the `turbopack.*` config key
+only affects the Turbopack **dev server**, not production builds.
+
+**Fix:**
+Changed import in `middleware.ts` from `next/server` to
+`next/dist/esm/server/web/spec-extension/response.js` (pure ESM, no CJS wrapper,
+no `app-render` transitive dependencies). Kept `NextRequest` as a `type`-only import
+from `"next/server"` since type imports are erased at build time and generate no
+runtime code. Added `src/types/next-server-edge.d.ts` to provide TypeScript
+declarations for the ESM path.
+
+**Prevention:**
+When importing from `next/*` in Edge Middleware, always verify the resolved file is
+ESM, not CJS. `import type` is always safe. Runtime value imports need an ESM entry.
+
+---
+
 ## 2026-05-24 · infrastructure · MIDDLEWARE_INVOCATION_FAILED on Vercel
 
 **Type:** infrastructure / config
