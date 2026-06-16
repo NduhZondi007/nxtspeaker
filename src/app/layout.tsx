@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   title: "NxtSpeaker — Africa's Premier Speaker Platform",
   description:
     "Connect with world-class speakers who drive transformation across Africa. Luxury speaker booking and hospitality platform.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
