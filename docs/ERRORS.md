@@ -5,6 +5,28 @@ Append entries in reverse-chronological order (newest first).
 
 ---
 
+## 2026-06-16 · bug · SECURITY DEFINER trigger fails with "Database error saving new user"
+
+**Type:** bug
+**Affected:** `supabase/migrations/` — `handle_new_user()` and `handle_new_speaker_profile()` triggers, `src/lib/supabase/server.ts`
+**Severity:** critical (every new user registration fails)
+
+**What happened:**
+Every call to `auth.admin.createUser()` returned "Database error saving new user". New users could not register at all. 16 `auth.users` rows existed but only 13 had a corresponding `public.profiles` row — 3 users had no profile.
+
+**Root cause:**
+`supabase_auth_admin` (the role GoTrue uses) has `search_path=auth` set in its `rolconfig`. Both SECURITY DEFINER trigger functions (`handle_new_user`, `handle_new_speaker_profile`) had `proconfig=NULL` — no explicit `search_path`. PostgreSQL SECURITY DEFINER functions with no explicit `search_path` inherit the **calling session's** `search_path`, not the function owner's. So the functions ran with `search_path=auth`, and the bare table reference `profiles` resolved to `auth.profiles` (which does not exist), crashing the trigger and rolling back the `auth.users` INSERT. The 3 orphaned users were created before the trigger was set up.
+
+**Fix:**
+- Migration `20260616195246_fix-trigger-search-path.sql`: recreated both functions with `SET search_path = ''` and fully-qualified `public.` table names.
+- Same migration backfills profiles for the 3 orphaned users.
+- `src/lib/supabase/server.ts`: replaced `createServerClient` (from `@supabase/ssr`) with `createClient` (from `@supabase/supabase-js`) for the service role client. SSR client is not intended for admin operations and uses cookie overhead unnecessarily.
+
+**Prevention:**
+All SECURITY DEFINER functions must include `SET search_path = ''` and use fully-qualified schema.table names. Run `supabase db advisors` after any function change — it flags SECURITY DEFINER functions without explicit search_path.
+
+---
+
 ## 2026-06-16 · infrastructure · Vercel build failure — Import Attributes syntax in Next.js ESM tree
 
 **Type:** infrastructure / config

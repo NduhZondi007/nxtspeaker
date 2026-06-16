@@ -8,6 +8,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `handle_new_user` and `handle_new_speaker_profile` trigger functions now use
+  `SET search_path = ''` and fully-qualified `public.` table names, preventing
+  "Database error saving new user" when `supabase_auth_admin` fires triggers
+  with its `search_path=auth` session config
+- Backfilled `public.profiles` rows for 3 `auth.users` that had no profile
+- `createServiceClient` now uses `createClient` from `@supabase/supabase-js`
+  directly (with `autoRefreshToken: false, persistSession: false`) instead of
+  `createServerClient` from `@supabase/ssr`, which is not designed for admin ops
+
 ### Added
 - `CLAUDE.md` — project-wide Claude Code configuration covering TDD workflow,
   commit process, error logging, and handover ritual

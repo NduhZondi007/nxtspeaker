@@ -15,7 +15,7 @@ export async function registerUser(formData: FormData) {
   // Use admin API to create the user with email already confirmed.
   // This avoids sending a confirmation email (and hitting rate limits)
   // while still creating a fully active account immediately.
-  const service = await createServiceClient();
+  const service = createServiceClient();
 
   const { data: adminData, error: adminError } = await service.auth.admin.createUser({
     email,
@@ -132,7 +132,7 @@ export async function loginUser(formData: FormData) {
     const appMeta = user.app_metadata ?? {};
     const userMeta = user.user_metadata ?? {};
     const role = (appMeta.role as "SPEAKER" | "CLIENT") ?? "CLIENT";
-    const service = await createServiceClient();
+    const service = createServiceClient();
     await service.from("profiles").upsert(
       {
         id: user.id,
