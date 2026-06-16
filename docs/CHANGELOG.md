@@ -19,6 +19,29 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `createServerClient` from `@supabase/ssr`, which is not designed for admin ops
 
 ### Added
+- **Admin role** — privileged ADMIN user type with full platform oversight:
+  - `supabase/migrations/20260616210049_admin-role.sql` — adds `base_role` column
+    to profiles (preserves CLIENT/SPEAKER role on promotion) + RLS policies for
+    admin access to all profiles, bookings, messages, and speaker_profiles
+  - `src/app/actions/admin.ts` — server actions: `promoteToAdmin`, `revokeAdmin`,
+    `adminUpdateBookingStatus`, `adminCreateSpeaker`, `adminToggleSpeakerStatus`,
+    `adminSendMessage`, `adminSearchUsers`; all re-verify caller's ADMIN role on
+    every request and use service role client for writes
+  - `src/app/admin/layout.tsx` — guards route; only ADMIN users can access `/admin/*`
+  - `src/app/admin/dashboard/page.tsx` — stats (users, speakers, bookings, revenue),
+    "View as" banner for client/speaker portal, recent bookings + users grid
+  - `src/app/admin/users/page.tsx` — full user list with role badges, promote/revoke buttons
+  - `src/app/admin/users/[id]/page.tsx` — user detail: profile card, role management, booking history
+  - `src/app/admin/bookings/page.tsx` — all bookings across all users with status filter tabs
+  - `src/app/admin/bookings/[id]/page.tsx` — booking detail with admin action bar
+    (Confirm / Mark Completed / Cancel) and full chat access via `adminSendMessage`
+  - `src/app/admin/speakers/page.tsx` + `AdminSpeakersClient.tsx` — speaker grid (all statuses),
+    activate/deactivate toggle, 2-step "Add Speaker" modal (user search → profile form)
+  - `src/components/admin/AddSpeakerModal.tsx` — client component for adding speakers
+  - `src/components/layout/Sidebar.tsx` — admin nav (Dashboard, Users, Bookings, Speakers),
+    "Back to Admin Portal" link when admin views client/speaker portals
+  - Auth login and home redirect now routes ADMIN to `/admin/dashboard`
+  - Client and speaker layouts now allow ADMIN through for "view as" functionality
 - `src/app/icon.svg` — branded SVG favicon (dark rounded square + gold mic icon)
   matching the app logo mark; declared in root layout metadata
 - `src/components/layout/SidebarContext.tsx` — React context for mobile sidebar
