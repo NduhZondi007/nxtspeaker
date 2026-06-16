@@ -126,7 +126,7 @@ export function SpeakerModal({ speaker, reviews, onClose, onBook }: SpeakerModal
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {speaker.location && (
                 <div className="flex items-start gap-2">
                   <MapPin size={14} className="text-gold mt-0.5 shrink-0" />

@@ -49,7 +49,7 @@ export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
   return (
     <div className="space-y-3">
       {/* Search + controls row */}
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
         <div className="flex-1 relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-mid-gray" />
           <input
@@ -137,7 +137,7 @@ export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Availability */}
             <div>
               <p className="text-xs font-semibold text-charcoal uppercase tracking-wide mb-2">

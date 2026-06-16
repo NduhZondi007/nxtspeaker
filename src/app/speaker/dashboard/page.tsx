@@ -66,7 +66,7 @@ export default async function SpeakerDashboardPage() {
         subtitle="Manage your bookings and profile"
       />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((stat) => {
             const Icon = stat.icon;
@@ -117,7 +117,7 @@ export default async function SpeakerDashboardPage() {
                         <p className="font-cormorant text-lg font-bold text-gold">{formatZAR(booking.quoted_fee_zar)}</p>
                       </div>
                     </div>
-                    <div className="flex gap-2 mt-3">
+                    <div className="flex flex-wrap gap-2 mt-3">
                       <form action={accept.bind(null, booking.id)}>
                         <Button type="submit" variant="gold" size="sm">Accept</Button>
                       </form>

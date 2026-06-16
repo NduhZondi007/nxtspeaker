@@ -12,8 +12,10 @@ import {
   DollarSign,
   LogOut,
   Mic2,
+  X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useSidebar } from "@/components/layout/SidebarContext";
 import type { UserRole } from "@/lib/types/database";
 
 interface NavItem {
@@ -45,6 +47,7 @@ interface SidebarProps {
 export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isOpen, close } = useSidebar();
   const navItems = role === "SPEAKER" ? speakerNav : clientNav;
 
   async function handleLogout() {
@@ -53,16 +56,28 @@ export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
     router.push("/login");
   }
 
-  return (
+  function handleNavClick() {
+    close();
+  }
+
+  const sidebarContent = (
     <aside
-      className="w-64 h-screen sticky top-0 flex flex-col"
+      className={[
+        "fixed inset-y-0 left-0 z-40 w-64 flex flex-col transition-transform duration-300",
+        "md:sticky md:top-0 md:h-screen md:translate-x-0 md:z-auto",
+        isOpen ? "translate-x-0" : "-translate-x-full",
+      ].join(" ")}
       style={{
         background: "linear-gradient(180deg, #0A0A0F 0%, #1a1208 50%, #0A0A0F 100%)",
       }}
     >
       {/* Logo */}
-      <div className="px-6 py-6 border-b border-white/10">
-        <Link href={role === "SPEAKER" ? "/speaker/dashboard" : "/client/dashboard"} className="flex items-center gap-2.5">
+      <div className="px-6 py-6 border-b border-white/10 flex items-center justify-between">
+        <Link
+          href={role === "SPEAKER" ? "/speaker/dashboard" : "/client/dashboard"}
+          className="flex items-center gap-2.5"
+          onClick={handleNavClick}
+        >
           <div className="w-8 h-8 rounded-lg bg-gold flex items-center justify-center">
             <Mic2 size={16} className="text-ink" />
           </div>
@@ -70,6 +85,13 @@ export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
             NxtSpeaker
           </span>
         </Link>
+        <button
+          onClick={close}
+          className="md:hidden text-white/50 hover:text-white transition-colors p-1"
+          aria-label="Close menu"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       {/* Role label */}
@@ -88,6 +110,7 @@ export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={handleNavClick}
               className={[
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150",
                 active
@@ -134,5 +157,19 @@ export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
         </button>
       </div>
     </aside>
+  );
+
+  return (
+    <>
+      {/* Mobile backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
+      {sidebarContent}
+    </>
   );
 }

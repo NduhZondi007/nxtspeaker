@@ -40,7 +40,7 @@ export default async function ClientDashboardPage() {
         subtitle="Here's what's happening with your bookings"
       />
 
-      <div className="p-6 space-y-8">
+      <div className="p-4 sm:p-6 space-y-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {stats.map((stat) => {
             const Icon = stat.icon;

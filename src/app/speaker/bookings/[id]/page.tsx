@@ -87,7 +87,7 @@ export default async function SpeakerBookingDetailPage({ params }: Props) {
         </Link>
       </TopBar>
 
-      <div className="p-6 grid lg:grid-cols-3 gap-6">
+      <div className="p-4 sm:p-6 grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           {/* Booking card */}
           <div className="bg-white border border-warm-gray rounded-2xl p-5">
@@ -156,7 +156,7 @@ export default async function SpeakerBookingDetailPage({ params }: Props) {
         </div>
 
         {/* Chat */}
-        <div className="bg-white border border-warm-gray rounded-2xl overflow-hidden flex flex-col" style={{ minHeight: "500px" }}>
+        <div className="bg-white border border-warm-gray rounded-2xl overflow-hidden flex flex-col" style={{ minHeight: "300px" }}>
           <div className="flex items-center gap-2 px-4 py-3 border-b border-warm-gray">
             <MessageSquare size={16} className="text-gold" />
             <h2 className="font-cormorant text-lg font-semibold text-ink">

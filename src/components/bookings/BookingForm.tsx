@@ -109,7 +109,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
   }
 
   return (
-    <div className="p-6 max-w-2xl w-full">
+    <div className="p-4 sm:p-6 max-w-2xl w-full">
       {/* Step indicator */}
       <div className="flex items-center gap-0 mb-8">
         {STEPS.map((s, i) => (
@@ -165,7 +165,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
             onChange={(e) => update({ event_organiser: e.target.value })}
             error={errors.event_organiser}
           />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
               type="date"
               label="Event Date *"
@@ -180,7 +180,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
               onChange={(e) => update({ event_end_date: e.target.value })}
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-charcoal uppercase tracking-wide">
                 Event Format *

@@ -53,7 +53,7 @@ export default function SpeakerRiderPage() {
         <Button variant="gold" onClick={handleSave} loading={saving}>Save Rider</Button>
       </TopBar>
 
-      <div className="p-6 max-w-2xl space-y-5">
+      <div className="p-4 sm:p-6 max-w-2xl space-y-5">
         {/* Water */}
         <Section title="Water & Beverages">
           <CheckRow label="Still water" checked={rider.water_still} onChange={(v) => setRider({ ...rider, water_still: v })} />

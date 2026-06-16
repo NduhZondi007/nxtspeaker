@@ -37,9 +37,9 @@ export default async function SpeakerEarningsPage() {
     <div>
       <TopBar title="Earnings" subtitle="Your fee history in South African Rand" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         {/* Summary */}
-        <div className="grid sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { label: "Total Earned", value: formatZAR(total), color: "#6B9E78" },
             { label: "Upcoming (Confirmed)", value: formatZAR(pending), color: "#C9A96E" },

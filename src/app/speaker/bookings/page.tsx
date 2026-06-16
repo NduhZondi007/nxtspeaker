@@ -25,7 +25,7 @@ export default async function SpeakerBookingsPage() {
     <div>
       <TopBar title="My Bookings" subtitle="All incoming booking requests" />
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {bookings.length === 0 ? (
           <div className="text-center py-20">
             <CalendarCheck size={40} className="text-warm-gray mx-auto mb-4" />

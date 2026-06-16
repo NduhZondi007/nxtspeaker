@@ -53,13 +53,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast, success, error, warning, info }}>
       {children}
-      <div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[100] flex flex-col gap-3 pointer-events-none w-[calc(100vw-2rem)] sm:w-80">
         {toasts.map((t) => {
           const { icon: Icon, color } = typeConfig[t.type];
           return (
             <div
               key={t.id}
-              className="pointer-events-auto w-80 bg-cream border border-gold/30 rounded-xl shadow-xl p-4 flex gap-3 animate-[toast-enter_0.3s_ease-out]"
+              className="pointer-events-auto bg-cream border border-gold/30 rounded-xl shadow-xl p-4 flex gap-3 animate-[toast-enter_0.3s_ease-out]"
             >
               <Icon size={20} className={`shrink-0 mt-0.5 ${color}`} />
               <div className="flex-1 min-w-0">

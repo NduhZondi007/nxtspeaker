@@ -130,7 +130,7 @@ export default function DiscoverPage() {
     <div>
       <TopBar title="Find Speakers" subtitle="Discover world-class speakers for your event" />
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-6">
         <SpeakerFilters filters={filters} onChange={setFilters} />
 
         {loading ? (

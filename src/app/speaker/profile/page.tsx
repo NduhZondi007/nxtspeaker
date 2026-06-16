@@ -112,7 +112,7 @@ export default function SpeakerProfilePage() {
         <Button variant="gold" onClick={handleSave} loading={saving}>Save Changes</Button>
       </TopBar>
 
-      <div className="p-6 max-w-2xl space-y-6">
+      <div className="p-4 sm:p-6 max-w-2xl space-y-6">
         {/* Avatar */}
         <div className="bg-white border border-warm-gray rounded-2xl p-5">
           <h2 className="font-cormorant text-lg font-semibold text-ink mb-4">Profile Photo</h2>

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { SidebarProvider } from "@/components/layout/SidebarContext";
 
 export default async function SpeakerLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -21,9 +22,11 @@ export default async function SpeakerLayout({ children }: { children: React.Reac
   if (profile.role !== "SPEAKER") redirect("/client/dashboard");
 
   return (
-    <div className="flex min-h-screen bg-cream">
-      <Sidebar role="SPEAKER" userName={profile.full_name} avatarUrl={profile.avatar_url} />
-      <main className="flex-1 min-w-0 overflow-auto">{children}</main>
-    </div>
+    <SidebarProvider>
+      <div className="flex min-h-screen bg-cream">
+        <Sidebar role="SPEAKER" userName={profile.full_name} avatarUrl={profile.avatar_url} />
+        <main className="flex-1 min-w-0 overflow-auto">{children}</main>
+      </div>
+    </SidebarProvider>
   );
 }

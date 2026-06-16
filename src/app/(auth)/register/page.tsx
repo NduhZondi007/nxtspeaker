@@ -31,7 +31,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex">
       {/* Form side */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 sm:px-16 lg:px-20 py-12 bg-cream overflow-y-auto">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-16 lg:px-20 py-12 bg-cream overflow-y-auto">
         <div className="flex items-center gap-2.5 mb-10">
           <div className="w-9 h-9 rounded-xl bg-ink flex items-center justify-center">
             <Mic2 size={18} className="text-gold" />
