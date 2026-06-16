@@ -19,12 +19,12 @@ export default async function SpeakerLayout({ children }: { children: React.Reac
     .single();
 
   if (!profile) redirect("/login");
-  if (profile.role !== "SPEAKER") redirect("/client/dashboard");
+  if (profile.role !== "SPEAKER" && profile.role !== "ADMIN") redirect("/client/dashboard");
 
   return (
     <SidebarProvider>
       <div className="flex min-h-screen bg-cream">
-        <Sidebar role="SPEAKER" userName={profile.full_name} avatarUrl={profile.avatar_url} />
+        <Sidebar role="SPEAKER" userName={profile.full_name} avatarUrl={profile.avatar_url} isAdmin={profile.role === "ADMIN"} />
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
       </div>
     </SidebarProvider>

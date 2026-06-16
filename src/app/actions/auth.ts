@@ -160,6 +160,8 @@ export async function loginUser(formData: FormData) {
 
   if (profile.role === "SPEAKER") {
     redirect("/speaker/dashboard");
+  } else if (profile.role === "ADMIN") {
+    redirect("/admin/dashboard");
   } else {
     redirect("/client/dashboard");
   }

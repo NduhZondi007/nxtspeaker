@@ -19,6 +19,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `createServerClient` from `@supabase/ssr`, which is not designed for admin ops
 
 ### Added
+- `src/app/icon.svg` — branded SVG favicon (dark rounded square + gold mic icon)
+  matching the app logo mark; declared in root layout metadata
+- `src/components/layout/SidebarContext.tsx` — React context for mobile sidebar
+  open/close state shared between Sidebar and TopBar
+
+### Changed
+- Full responsive redesign across 23 files — app now usable on mobile (375px),
+  tablet (768px), and laptop (1024px+):
+  - Sidebar collapses to hamburger-triggered slide-over drawer on mobile
+  - TopBar gains hamburger menu button on mobile
+  - All page content areas: `p-6` → `p-4 sm:p-6`
+  - SpeakerFilters: search row stacks on mobile; filter grid is 1/2/3-col responsive
+  - SpeakerModal profile detail grid: 1 col mobile, 2 col sm+
+  - BookingForm date/format grids: 1 col mobile, 2 col sm+
+  - ChatPanel message bubbles: 85% width on mobile, 70% on sm+; break-words added
+  - Booking detail pages: chat panel minHeight reduced 500px → 300px
+  - Chat full-page: `h-screen` → `h-[100dvh]`
+  - Toast container: viewport-relative width on mobile
+  - Dashboard pending booking buttons: `flex-wrap` added
+  - Earnings summary grid: 1-col mobile → 2-col sm → 3-col lg
 - `CLAUDE.md` — project-wide Claude Code configuration covering TDD workflow,
   commit process, error logging, and handover ritual
 - `.claude/settings.json` — project-level Claude settings with pre-commit

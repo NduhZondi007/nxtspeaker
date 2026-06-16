@@ -20,6 +20,8 @@ export default async function HomePage() {
 
   if (profile?.role === "SPEAKER") {
     redirect("/speaker/dashboard");
+  } else if (profile?.role === "ADMIN") {
+    redirect("/admin/dashboard");
   }
 
   redirect("/client/dashboard");

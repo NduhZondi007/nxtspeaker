@@ -13,6 +13,9 @@ import {
   LogOut,
   Mic2,
   X,
+  Users2,
+  ShieldCheck,
+  ArrowLeft,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useSidebar } from "@/components/layout/SidebarContext";
@@ -38,17 +41,40 @@ const speakerNav: NavItem[] = [
   { label: "Earnings", href: "/speaker/earnings", icon: DollarSign },
 ];
 
+const adminNav: NavItem[] = [
+  { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+  { label: "Users", href: "/admin/users", icon: Users2 },
+  { label: "Bookings", href: "/admin/bookings", icon: CalendarCheck },
+  { label: "Speakers", href: "/admin/speakers", icon: Mic2 },
+];
+
+const portalLabels: Record<UserRole, string> = {
+  CLIENT: "Client Portal",
+  SPEAKER: "Speaker Portal",
+  ADMIN: "Admin Portal",
+};
+
 interface SidebarProps {
   role: UserRole;
   userName: string;
   avatarUrl?: string | null;
+  isAdmin?: boolean;
 }
 
-export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
+export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { isOpen, close } = useSidebar();
-  const navItems = role === "SPEAKER" ? speakerNav : clientNav;
+
+  const navItems =
+    role === "ADMIN" ? adminNav : role === "SPEAKER" ? speakerNav : clientNav;
+
+  const logoHref =
+    role === "ADMIN"
+      ? "/admin/dashboard"
+      : role === "SPEAKER"
+      ? "/speaker/dashboard"
+      : "/client/dashboard";
 
   async function handleLogout() {
     const supabase = createClient();
@@ -74,7 +100,7 @@ export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
       {/* Logo */}
       <div className="px-6 py-6 border-b border-white/10 flex items-center justify-between">
         <Link
-          href={role === "SPEAKER" ? "/speaker/dashboard" : "/client/dashboard"}
+          href={logoHref}
           className="flex items-center gap-2.5"
           onClick={handleNavClick}
         >
@@ -95,11 +121,26 @@ export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
       </div>
 
       {/* Role label */}
-      <div className="px-6 pt-4 pb-2">
+      <div className="px-6 pt-4 pb-2 flex items-center gap-2">
+        {role === "ADMIN" && <ShieldCheck size={10} className="text-gold/60" />}
         <span className="text-[10px] font-semibold uppercase tracking-widest text-gold/60">
-          {role === "SPEAKER" ? "Speaker Portal" : "Client Portal"}
+          {portalLabels[role]}
         </span>
       </div>
+
+      {/* Back to Admin Portal (shown when admin is browsing client/speaker portal) */}
+      {isAdmin && role !== "ADMIN" && (
+        <div className="px-3 pb-1">
+          <Link
+            href="/admin/dashboard"
+            onClick={handleNavClick}
+            className="flex items-center gap-2 px-3 py-2 text-xs text-gold/80 hover:text-gold bg-gold/8 border border-gold/20 rounded-lg transition-colors"
+          >
+            <ArrowLeft size={12} />
+            <span className="font-medium italic">Back to Admin Portal</span>
+          </Link>
+        </div>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
@@ -161,7 +202,6 @@ export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile backdrop */}
       {isOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50 md:hidden"
