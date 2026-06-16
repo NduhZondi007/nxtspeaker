@@ -1,4 +1,8 @@
-import { NextResponse, type NextRequest } from "next/server";
+// type-only — erased at build time, no CJS wrapper risk
+import type { NextRequest } from "next/server";
+// Direct ESM path: avoids next/server.js (CJS) whose Turbopack shim injects
+// __dirname, which is undefined in Edge Runtime (V8 isolate).
+import { NextResponse } from "next/dist/esm/server/web/exports/index.js";
 
 // Middleware only handles routing — it does NOT enforce security.
 // Real auth + role verification happens in server layouts via supabase.auth.getUser().
