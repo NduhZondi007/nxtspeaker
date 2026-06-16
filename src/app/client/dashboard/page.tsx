@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatZAR } from "@/lib/utils/currency";
+import type { Booking, SpeakerProfile } from "@/lib/types/database";
 
 export default async function ClientDashboardPage() {
   const supabase = await createClient();
@@ -18,12 +19,12 @@ export default async function ClientDashboardPage() {
     supabase.from("speaker_profiles").select("*, profiles(*)").eq("status", "ACTIVE").eq("available", true).order("avg_rating", { ascending: false }).limit(4),
   ]);
 
-  const bookings = (bks ?? []) as any[];
-  const speakers = (sps ?? []) as any[];
+  const bookings = (bks ?? []) as Booking[];
+  const speakers = (sps ?? []) as SpeakerProfile[];
 
   const activeBookings = bookings.filter((b) => ["PENDING", "CONFIRMED", "DEPOSIT_PAID"].includes(b.status)).length;
   const completedBookings = bookings.filter((b) => b.status === "COMPLETED").length;
-  const totalSpent = bookings.filter((b) => b.status === "COMPLETED").reduce((sum: number, b: any) => sum + Number(b.quoted_fee_zar), 0);
+  const totalSpent = bookings.filter((b) => b.status === "COMPLETED").reduce((sum: number, b: Booking) => sum + Number(b.quoted_fee_zar), 0);
 
   const stats = [
     { label: "Active Bookings", value: String(activeBookings), icon: CalendarCheck, color: "#C9A96E" },
@@ -73,7 +74,7 @@ export default async function ClientDashboardPage() {
               </div>
             ) : (
               <div className="divide-y divide-warm-gray">
-                {bookings.map((booking: any) => (
+                {bookings.map((booking: Booking) => (
                   <Link key={booking.id} href={`/client/bookings/${booking.id}`}>
                     <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-cream/60 transition-colors">
                       <div className="flex-1 min-w-0">
@@ -117,7 +118,7 @@ export default async function ClientDashboardPage() {
                   <h2 className="font-cormorant text-lg font-semibold text-ink">Top Speakers</h2>
                 </div>
                 <div className="divide-y divide-warm-gray">
-                  {speakers.slice(0, 3).map((sp: any) => (
+                  {speakers.slice(0, 3).map((sp: SpeakerProfile) => (
                     <Link key={sp.id} href="/client/discover">
                       <div className="flex items-center gap-3 px-4 py-3 hover:bg-cream/60 transition-colors">
                         <div className="w-9 h-9 rounded-lg bg-gold/20 flex items-center justify-center text-sm font-bold text-gold shrink-0">

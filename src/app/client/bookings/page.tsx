@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatZAR } from "@/lib/utils/currency";
+import type { Booking } from "@/lib/types/database";
 
 export default async function ClientBookingsPage() {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export default async function ClientBookingsPage() {
     .eq("client_id", user.id)
     .order("created_at", { ascending: false });
 
-  const bookings = (bks ?? []) as any[];
+  const bookings = (bks ?? []) as Booking[];
 
   return (
     <div>
@@ -40,7 +41,7 @@ export default async function ClientBookingsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {bookings.map((booking: any) => {
+            {bookings.map((booking: Booking) => {
               const speaker = booking.speaker_profiles;
               return (
                 <Link key={booking.id} href={`/client/bookings/${booking.id}`}>

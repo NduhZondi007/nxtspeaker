@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { sendMessage } from "@/app/actions/messages";
+import type { Booking, Message, Profile } from "@/lib/types/database";
 
 interface Props {
   params: Promise<{ bookingId: string }>;
@@ -37,7 +38,7 @@ export default async function ClientChatPage({ params }: Props) {
 
   if (!booking) notFound();
 
-  const speaker = (booking as any).speaker_profiles;
+  const speaker = (booking as Booking).speaker_profiles;
   const speakerName = speaker?.profiles?.full_name ?? "Speaker";
 
   async function handleSendMessage(id: string, content: string) {
@@ -57,9 +58,9 @@ export default async function ClientChatPage({ params }: Props) {
       <div className="flex-1 overflow-hidden">
         {profile && (
           <ChatPanel
-            booking={booking as any}
-            initialMessages={(messages ?? []) as any}
-            currentUser={profile as any}
+            booking={booking as Booking}
+            initialMessages={(messages ?? []) as Message[]}
+            currentUser={profile as Profile}
             onSend={handleSendMessage}
           />
         )}

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Star, MapPin, Globe, Monitor } from "lucide-react";
 import { formatZAR } from "@/lib/utils/currency";
 import type { SpeakerProfile } from "@/lib/types/database";
@@ -60,10 +61,12 @@ export function SpeakerCard({ speaker, onClick }: SpeakerCardProps) {
           {/* Avatar */}
           <div className="relative shrink-0">
             {speaker.profiles?.avatar_url ? (
-              <img
+              <Image
                 src={speaker.profiles.avatar_url}
                 alt={speaker.profiles.full_name}
-                className="w-14 h-14 rounded-xl object-cover"
+                width={56}
+                height={56}
+                className="rounded-xl object-cover"
               />
             ) : (
               <div

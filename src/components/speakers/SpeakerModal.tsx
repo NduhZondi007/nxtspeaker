@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { Star, MapPin, Globe, Monitor, Calendar, Award } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
@@ -35,10 +36,12 @@ export function SpeakerModal({ speaker, reviews, onClose, onBook }: SpeakerModal
         <div className="absolute inset-0 flex items-end px-6 pb-4">
           <div className="flex items-end gap-4">
             {speaker.profiles?.avatar_url ? (
-              <img
+              <Image
                 src={speaker.profiles.avatar_url}
                 alt={speakerName}
-                className="w-20 h-20 rounded-2xl object-cover border-2 border-gold/40 shadow-lg"
+                width={80}
+                height={80}
+                className="rounded-2xl object-cover border-2 border-gold/40 shadow-lg"
               />
             ) : (
               <div

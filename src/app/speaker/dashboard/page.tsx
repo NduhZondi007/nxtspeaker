@@ -7,6 +7,7 @@ import { BookingStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatZAR } from "@/lib/utils/currency";
 import { updateBookingStatus } from "@/app/actions/bookings";
+import type { Booking } from "@/lib/types/database";
 
 export default async function SpeakerDashboardPage() {
   const supabase = await createClient();
@@ -24,12 +25,12 @@ export default async function SpeakerDashboardPage() {
     .eq("speaker_id", speakerProfile?.id ?? "")
     .order("created_at", { ascending: false });
 
-  const bookings = (bks ?? []) as any[];
+  const bookings = (bks ?? []) as Booking[];
 
   const pending = bookings.filter((b) => b.status === "PENDING");
   const confirmed = bookings.filter((b) => ["CONFIRMED", "DEPOSIT_PAID"].includes(b.status));
   const completed = bookings.filter((b) => b.status === "COMPLETED");
-  const totalEarnings = completed.reduce((sum: number, b: any) => sum + Number(b.quoted_fee_zar), 0);
+  const totalEarnings = completed.reduce((sum: number, b: Booking) => sum + Number(b.quoted_fee_zar), 0);
 
   const fields = [
     speakerProfile?.bio,
@@ -101,7 +102,7 @@ export default async function SpeakerDashboardPage() {
               </div>
             ) : (
               <div className="divide-y divide-warm-gray">
-                {pending.map((booking: any) => (
+                {pending.map((booking: Booking) => (
                   <div key={booking.id} className="px-5 py-4">
                     <div className="flex items-start gap-4">
                       <div className="flex-1 min-w-0">
@@ -159,7 +160,7 @@ export default async function SpeakerDashboardPage() {
                 </div>
               ) : (
                 <div className="divide-y divide-warm-gray">
-                  {confirmed.slice(0, 3).map((b: any) => (
+                  {confirmed.slice(0, 3).map((b: Booking) => (
                     <Link key={b.id} href={`/speaker/bookings/${b.id}`}>
                       <div className="flex items-center gap-3 px-4 py-3 hover:bg-cream/60 transition-colors">
                         <div className="w-9 h-9 rounded-lg bg-gold/10 flex flex-col items-center justify-center shrink-0">

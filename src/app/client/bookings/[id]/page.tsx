@@ -8,6 +8,7 @@ import { ChatPanel } from "@/components/chat/ChatPanel";
 import { HospitalityRiderView } from "@/components/bookings/HospitalityRiderView";
 import { formatZAR } from "@/lib/utils/currency";
 import { sendMessage } from "@/app/actions/messages";
+import type { Booking, Message, Profile } from "@/lib/types/database";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -44,11 +45,11 @@ export default async function ClientBookingDetailPage({ params }: Props) {
     supabase
       .from("hospitality_riders")
       .select("*")
-      .eq("speaker_id", (booking as any).speaker_profiles?.id)
+      .eq("speaker_id", (booking as Booking).speaker_profiles?.id ?? "")
       .single(),
   ]);
 
-  const speaker = (booking as any).speaker_profiles;
+  const speaker = (booking as Booking).speaker_profiles;
   const speakerName = speaker?.profiles?.full_name ?? "Speaker";
 
   async function handleSendMessage(bookingId: string, content: string) {
@@ -128,9 +129,9 @@ export default async function ClientBookingDetailPage({ params }: Props) {
           </div>
           {profile && (
             <ChatPanel
-              booking={booking as any}
-              initialMessages={(messages ?? []) as any}
-              currentUser={profile as any}
+              booking={booking as Booking}
+              initialMessages={(messages ?? []) as Message[]}
+              currentUser={profile as Profile}
               onSend={handleSendMessage}
             />
           )}

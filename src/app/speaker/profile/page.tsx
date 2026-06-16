@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import Image from "next/image";
 import { Camera } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
@@ -26,7 +27,7 @@ export default function SpeakerProfilePage() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const { success, error } = useToast();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     async function load() {
@@ -40,7 +41,7 @@ export default function SpeakerProfilePage() {
       setSp(s as SpeakerProfile);
     }
     load();
-  }, []);
+  }, [supabase]);
 
   async function handleSave() {
     if (!sp) return;
@@ -117,7 +118,7 @@ export default function SpeakerProfilePage() {
           <h2 className="font-cormorant text-lg font-semibold text-ink mb-4">Profile Photo</h2>
           <div className="flex items-center gap-5">
             {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="Avatar" className="w-20 h-20 rounded-2xl object-cover" />
+              <Image src={profile.avatar_url} alt="Avatar" width={80} height={80} className="rounded-2xl object-cover" />
             ) : (
               <div className="w-20 h-20 rounded-2xl bg-warm-gray flex items-center justify-center text-2xl font-bold text-mid-gray">
                 {profile?.full_name?.charAt(0) ?? "S"}

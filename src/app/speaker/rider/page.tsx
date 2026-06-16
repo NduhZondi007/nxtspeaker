@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
@@ -13,7 +13,7 @@ export default function SpeakerRiderPage() {
   const [rider, setRider] = useState<HospitalityRider | null>(null);
   const [saving, setSaving] = useState(false);
   const { success, error } = useToast();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     async function load() {
@@ -25,7 +25,7 @@ export default function SpeakerRiderPage() {
       setRider(r as HospitalityRider);
     }
     load();
-  }, []);
+  }, [supabase]);
 
   async function handleSave() {
     if (!rider) return;

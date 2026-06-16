@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { formatZAR } from "@/lib/utils/currency";
 import { updateBookingStatus } from "@/app/actions/bookings";
 import { sendMessage } from "@/app/actions/messages";
+import type { Booking, Message, Profile } from "@/lib/types/database";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -56,7 +57,7 @@ export default async function SpeakerBookingDetailPage({ params }: Props) {
       .single(),
   ]);
 
-  const clientProfile = (booking as any).profiles;
+  const clientProfile = (booking as Booking).profiles;
 
   async function accept() {
     "use server";
@@ -164,9 +165,9 @@ export default async function SpeakerBookingDetailPage({ params }: Props) {
           </div>
           {profile && (
             <ChatPanel
-              booking={booking as any}
-              initialMessages={(messages ?? []) as any}
-              currentUser={profile as any}
+              booking={booking as Booking}
+              initialMessages={(messages ?? []) as Message[]}
+              currentUser={profile as Profile}
               onSend={handleSendMessage}
             />
           )}

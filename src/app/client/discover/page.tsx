@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { TopBar } from "@/components/layout/TopBar";
@@ -35,7 +35,7 @@ export default function DiscoverPage() {
   const [bookingRider, setBookingRider] = useState<HospitalityRider | null>(null);
   const { profile } = useAuth();
   const { success, error } = useToast();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   // Debounced fetch — 300 ms delay prevents a query on every keystroke.
   // The `stale` flag cancels in-flight results if filters change again before the fetch completes.
@@ -88,7 +88,7 @@ export default function DiscoverPage() {
       stale = true;
       clearTimeout(timer);
     };
-  }, [filters]);
+  }, [filters, supabase]);
 
   async function handleSelectSpeaker(speaker: SpeakerProfile) {
     setSelectedSpeaker(speaker);

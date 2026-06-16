@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
 import { formatZAR } from "@/lib/utils/currency";
+import type { Booking } from "@/lib/types/database";
 
 export default async function SpeakerEarningsPage() {
   const supabase = await createClient();
@@ -20,15 +21,17 @@ export default async function SpeakerEarningsPage() {
     .eq("user_id", user.id)
     .single();
 
-  const { data: bookings } = await supabase
+  const { data: rawBookings } = await supabase
     .from("bookings")
     .select("*, profiles(*)")
     .eq("speaker_id", sp?.id ?? "")
     .in("status", ["CONFIRMED", "DEPOSIT_PAID", "COMPLETED"])
     .order("event_date", { ascending: false });
 
-  const total = bookings?.filter((b) => b.status === "COMPLETED").reduce((sum, b) => sum + Number(b.quoted_fee_zar), 0) ?? 0;
-  const pending = bookings?.filter((b) => ["CONFIRMED", "DEPOSIT_PAID"].includes(b.status)).reduce((sum, b) => sum + Number(b.quoted_fee_zar), 0) ?? 0;
+  const bookings = (rawBookings ?? []) as Booking[];
+
+  const total = bookings.filter((b) => b.status === "COMPLETED").reduce((sum, b) => sum + Number(b.quoted_fee_zar), 0);
+  const pending = bookings.filter((b) => ["CONFIRMED", "DEPOSIT_PAID"].includes(b.status)).reduce((sum, b) => sum + Number(b.quoted_fee_zar), 0);
 
   return (
     <div>
@@ -56,7 +59,7 @@ export default async function SpeakerEarningsPage() {
           <div className="px-5 py-4 border-b border-warm-gray">
             <h2 className="font-cormorant text-lg font-semibold text-ink">Fee History</h2>
           </div>
-          {!bookings || bookings.length === 0 ? (
+          {bookings.length === 0 ? (
             <div className="text-center py-12">
               <DollarSign size={32} className="text-warm-gray mx-auto mb-3" />
               <p className="font-cormorant text-lg text-mid-gray">No earnings yet</p>
@@ -69,7 +72,7 @@ export default async function SpeakerEarningsPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-charcoal truncate">{booking.event_name}</p>
                     <p className="text-xs text-mid-gray mt-0.5">
-                      {(booking as any).profiles?.full_name ?? "Client"} ·{" "}
+                      {booking.profiles?.full_name ?? "Client"} ·{" "}
                       {new Date(booking.event_date).toLocaleDateString("en-ZA")}
                     </p>
                     <p className="text-xs text-mid-gray">Ref: {booking.booking_number}</p>

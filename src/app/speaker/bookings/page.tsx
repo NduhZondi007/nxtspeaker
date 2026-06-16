@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
 import { formatZAR } from "@/lib/utils/currency";
+import type { Booking } from "@/lib/types/database";
 
 export default async function SpeakerBookingsPage() {
   const supabase = await createClient();
@@ -18,7 +19,7 @@ export default async function SpeakerBookingsPage() {
     .eq("speaker_id", sp?.id ?? "")
     .order("event_date", { ascending: true });
 
-  const bookings = (bks ?? []) as any[];
+  const bookings = (bks ?? []) as Booking[];
 
   return (
     <div>
@@ -33,7 +34,7 @@ export default async function SpeakerBookingsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {bookings.map((booking: any) => (
+            {bookings.map((booking: Booking) => (
               <Link key={booking.id} href={`/speaker/bookings/${booking.id}`}>
                 <div className="bg-white border border-warm-gray rounded-2xl p-5 hover:border-gold/40 transition-all hover:-translate-y-0.5 cursor-pointer">
                   <div className="flex items-start gap-4">

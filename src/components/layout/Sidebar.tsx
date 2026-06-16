@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Search,
   CalendarCheck,
-  MessageSquare,
   User,
   Utensils,
   DollarSign,
@@ -106,10 +106,12 @@ export function Sidebar({ role, userName, avatarUrl }: SidebarProps) {
       <div className="px-4 py-4 border-t border-white/10">
         <div className="flex items-center gap-3 mb-3">
           {avatarUrl ? (
-            <img
+            <Image
               src={avatarUrl}
               alt={userName}
-              className="w-8 h-8 rounded-full object-cover ring-1 ring-gold/40"
+              width={32}
+              height={32}
+              className="rounded-full object-cover ring-1 ring-gold/40"
             />
           ) : (
             <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center">

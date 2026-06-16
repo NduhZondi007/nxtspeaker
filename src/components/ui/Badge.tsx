@@ -39,7 +39,6 @@ export function BookingStatusBadge({ status, className = "" }: BookingStatusBadg
 
 interface BadgeProps {
   children: React.ReactNode;
-  color?: string;
   className?: string;
 }
 
