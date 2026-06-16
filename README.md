@@ -50,7 +50,7 @@ NxtSpeaker is a full-stack web application with two user roles:
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22+ (Vercel runs Node.js 24; use 22+ locally to stay compatible)
 - A [Supabase](https://supabase.com) project
 - (Optional) [Supabase CLI](https://supabase.com/docs/guides/cli) for local development
 
@@ -79,7 +79,7 @@ cp .env.local.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3000   # use your custom domain in production
 ```
 
 Find these values in your Supabase project under **Settings → API**.
@@ -137,7 +137,7 @@ src/
 │   ├── supabase/            # Supabase client factories (server and browser)
 │   ├── types/               # TypeScript database types
 │   └── utils/               # Currency formatting, helpers
-└── proxy.ts                 # Next.js 16 proxy (session refresh on every request)
+middleware.ts                 # Edge auth guard (route protection for /client and /speaker)
 ```
 
 ---
@@ -154,27 +154,83 @@ git push
 
 ### 2. Import on Vercel
 
-Go to [vercel.com/new](https://vercel.com/new), import your repository. Next.js is auto-detected — no extra configuration needed.
+Go to [vercel.com/new](https://vercel.com/new) and import your repository.
+
+> **Critical:** After importing, go to **Settings → General → Framework Preset** and confirm it is set to **Next.js**. If it shows "Other" or is blank, change it to Next.js and redeploy. Without this, Vercel runs the build but ignores the output — all pages return 404.
 
 ### 3. Add environment variables
 
-In **Settings → Environment Variables** on the Vercel dashboard, add:
+In **Settings → Environment Variables** on the Vercel dashboard, add all four variables for the **Production** environment:
 
 | Variable | Description |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous (publishable) key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) |
-| `NEXT_PUBLIC_APP_URL` | Your Vercel deployment URL, e.g. `https://nxtspeaker.vercel.app` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only, never prefix with `NEXT_PUBLIC_`) |
+| `NEXT_PUBLIC_APP_URL` | Your production URL — Vercel deployment URL or custom domain (e.g. `https://imvunulo.co.za`) |
 
 ### 4. Update Supabase Auth for production
 
-In **Authentication → URL Configuration** in your Supabase dashboard:
+In **Authentication → URL Configuration** in your Supabase dashboard, update to your production URL (custom domain if you have one, otherwise the Vercel deployment URL):
 
-- **Site URL** → `https://your-app.vercel.app`
-- **Redirect URLs** → add `https://your-app.vercel.app/auth/callback`
+- **Site URL** → `https://your-domain.co.za`
+- **Redirect URLs** → add `https://your-domain.co.za/auth/callback`
 
-Deploy. Done.
+### 5. Verify the deployment
+
+After deploying, check the Vercel build output. A healthy Next.js deployment will have **60+ output items** (Lambda functions, static assets, edge middleware). If you see only 1–3 items, the framework adapter is not running — re-check the Framework Preset setting.
+
+---
+
+## Adding a Custom Domain to Vercel
+
+### 1. Add the domain to your Vercel project
+
+In **Settings → Domains**, click **Add**, enter your domain (e.g. `imvunulo.co.za`), and follow the prompts.
+
+### 2. Point your domain's nameservers to Vercel
+
+At your domain registrar (e.g. Afrihost, GoDaddy, Namecheap), update the nameservers to:
+
+```
+ns1.vercel-dns.com
+ns2.vercel-dns.com
+```
+
+This hands DNS management to Vercel. Propagation can take up to 48 hours but is typically faster.
+
+### 3. Verify DNS is resolving correctly
+
+Once nameservers have propagated, verify the domain resolves to Vercel's IP:
+
+```powershell
+# Query the authoritative Vercel nameserver directly
+Resolve-DnsName your-domain.co.za -Server ns1.vercel-dns.com
+# Should return: 76.76.21.21
+```
+
+If it still shows old IPs, the nameserver change hasn't propagated yet, or old A records exist in the Vercel DNS zone. Vercel will auto-correct the A records once the domain is properly linked to the project.
+
+### 4. Update Supabase Auth URLs
+
+In your Supabase dashboard under **Authentication → URL Configuration**, update:
+- **Site URL** → `https://your-domain.co.za`
+- **Redirect URLs** → add `https://your-domain.co.za/auth/callback`
+
+### 5. Update environment variables
+
+In Vercel, update `NEXT_PUBLIC_APP_URL` to `https://your-domain.co.za` for the Production environment, then redeploy.
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `404 NOT_FOUND` on all routes | `framework: null` — Next.js adapter not running | Settings → General → Framework Preset → set to Next.js, redeploy |
+| `500 MIDDLEWARE_INVOCATION_FAILED` | CJS module in Edge Runtime or missing env var | Check runtime logs; verify all env vars are set in Vercel |
+| Domain resolves to wrong IP | Stale DNS records or nameserver not propagated | Wait for propagation; query authoritative nameserver to confirm |
+| `.vercel.app` URL returns 401 | SSO protection on preview URLs | Expected — only the custom domain is public |
+
+For a detailed record of what went wrong during the initial deployment and how each issue was fixed, see [`docs/ERRORLOG.md`](docs/ERRORLOG.md).
 
 ---
 

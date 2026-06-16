@@ -13,6 +13,7 @@ Speaker booking platform for South Africa. Clients discover and book speakers; s
 - `supabase/migrations/` — All DB schema changes live here
 - `middleware.ts` — Edge auth guard
 - `docs/ERRORS.md` — Error log (append every non-trivial error encountered)
+- `docs/ERRORLOG.md` — Detailed incident log for major errors (full root cause analysis, fix chain, runbook)
 - `docs/CHANGELOG.md` — All changes recorded here
 
 ---
@@ -169,6 +170,51 @@ What guard/test/check was added to prevent recurrence.
 
 ---
 
+## Detailed Incident Log (`docs/ERRORLOG.md`)
+
+For **major incidents** — 500 errors, build failures, deployment failures, or any situation where the site is fully down — a short `ERRORS.md` entry is not enough. These require a full entry in `docs/ERRORLOG.md`.
+
+**Mandatory for:**
+- HTTP 500 errors on production that affect all users
+- Vercel/Supabase build or deployment failures
+- Site-down incidents (all routes failing)
+- Multi-layer problems where fixing one issue revealed the next
+- Any error that took more than 30 minutes to diagnose
+
+**What a ERRORLOG.md entry must include:**
+1. **Summary table** — each layer of the problem, its root cause, and its fix
+2. **Per-layer analysis** — symptom, why it happened, what was tried first and why it failed, the actual fix
+3. **How to diagnose this class of problem next time** — decision tree / checklist
+4. **Prevention checklist** — concrete items to verify before the next deployment
+
+**Format:**
+```markdown
+## YYYY-MM-DD — <title of incident>
+
+**Duration:** <how long the site was affected>
+**Impact:** <what users experienced>
+**Severity:** Critical | High | Medium
+**Resolved:** Yes / No
+
+### Summary
+| # | Symptom | Root cause | Fix |
+|---|---------|------------|-----|
+| 1 | ... | ... | ... |
+
+### Layer N: <name>
+**Symptom:** ...
+**Why it happened:** ...
+**Fix:** ...
+
+### How to diagnose this class of problem next time
+...
+
+### Prevention checklist
+- [ ] ...
+```
+
+---
+
 ## Handover Ritual
 
 **Run this at the end of every session**, whether the session ends naturally or is interrupted. The goal is zero knowledge loss between sessions.
@@ -179,7 +225,7 @@ Claude must complete these steps before the session closes:
 
 - [ ] **Summarise the session** — what was built, changed, or investigated
 - [ ] **List open tasks** — anything started but not finished, in priority order
-- [ ] **Document errors** — append any bugs/errors to `docs/ERRORS.md`
+- [ ] **Document errors** — append any bugs/errors to `docs/ERRORS.md`; write a full incident entry in `docs/ERRORLOG.md` for any major error (500s, build failures, site-down)
 - [ ] **Update changelog** — append all commits made this session to `docs/CHANGELOG.md`
 - [ ] **Note key decisions** — any architectural choices made and why
 - [ ] **State next steps** — the exact next action the next session should take

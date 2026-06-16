@@ -15,6 +15,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
   reminder hook and end-of-session handover reminder
 - `docs/ERRORS.md` — persistent error log; all incidents documented
 - `docs/CHANGELOG.md` — this file
+- `docs/ERRORLOG.md` — detailed incident log for major errors; full 4-layer
+  root cause analysis and runbook for the 2026-06-16 site-down incident
+
+### Docs
+- `README.md` — updated Node.js prerequisite (18+ → 22+), removed stale
+  `proxy.ts` reference from project structure, added critical Framework Preset
+  warning to Deploying to Vercel section, added new "Adding a Custom Domain to
+  Vercel" section with DNS verification steps and troubleshooting table,
+  updated `NEXT_PUBLIC_APP_URL` description to cover custom domains
+- `CLAUDE.md` — added `docs/ERRORLOG.md` to key paths; added mandatory
+  Detailed Incident Log section defining when and how to write ERRORLOG entries;
+  updated handover checklist to require ERRORLOG entry for major incidents
 
 ### Fixed
 - `middleware.ts` — import `NextResponse` from `next/dist/esm/server/web/spec-extension/response.js`
