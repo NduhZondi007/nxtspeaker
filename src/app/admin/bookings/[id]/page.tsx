@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, MessageSquare, XCircle, CheckCircle, Trophy } from "lucide-react";
@@ -13,6 +14,21 @@ import type { Booking, Message, Profile } from "@/lib/types/database";
 
 interface Props {
   params: Promise<{ id: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("bookings")
+    .select("event_name, booking_number")
+    .eq("id", id)
+    .single();
+  const title = data?.event_name ?? "Booking Detail";
+  return {
+    title,
+    description: `Admin view for booking ${data?.booking_number ?? id} — ${title} on NxtSpeaker.`,
+  };
 }
 
 export default async function AdminBookingDetailPage({ params }: Props) {

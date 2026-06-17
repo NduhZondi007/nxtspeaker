@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -9,6 +10,21 @@ import type { Booking, Message, Profile } from "@/lib/types/database";
 
 interface Props {
   params: Promise<{ bookingId: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { bookingId } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("bookings")
+    .select("event_name, speaker_profiles(profiles(full_name))")
+    .eq("id", bookingId)
+    .single();
+  const eventName = data?.event_name ?? "Booking";
+  return {
+    title: `Chat — ${eventName}`,
+    description: `Message thread for ${eventName} on NxtSpeaker.`,
+  };
 }
 
 export default async function ClientChatPage({ params }: Props) {

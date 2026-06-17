@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck, ShieldOff, CalendarCheck } from "lucide-react";
@@ -10,6 +11,21 @@ import type { Profile, Booking } from "@/lib/types/database";
 
 interface Props {
   params: Promise<{ id: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("full_name, role")
+    .eq("id", id)
+    .single();
+  const name = data?.full_name ?? "User";
+  return {
+    title: name,
+    description: `Admin profile for ${name}${data?.role ? ` (${data.role})` : ""} on NxtSpeaker.`,
+  };
 }
 
 export default async function AdminUserDetailPage({ params }: Props) {
