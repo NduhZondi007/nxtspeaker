@@ -8,6 +8,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Per-page SEO metadata: static `metadata` on admin/client/speaker portal
+  layouts and login/register pages, `generateMetadata` on booking detail and
+  chat pages (titles derived from `event_name`/`booking_number`/`full_name`)
+- `src/app/opengraph-image.tsx` — generates the OG share image used by
+  `openGraph.images` in `layout.tsx`
+- Login/register pages split into `LoginForm`/`RegisterForm` client
+  components so `page.tsx` can stay a Server Component and export metadata
+- `BrandMentionCard` — decorative animated card shown above the chat input
+  when a draft message mentions "nxtspeaker"
+
 ### Changed
 - `src/lib/env.ts#getBaseUrl()` now throws if `NEXT_PUBLIC_APP_URL` is unset,
   replacing the hardcoded `https://nxtspeaker.co.za` fallback previously
