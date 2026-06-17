@@ -8,6 +8,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- `src/lib/env.ts#getBaseUrl()` now throws if `NEXT_PUBLIC_APP_URL` is unset,
+  replacing the hardcoded `https://nxtspeaker.co.za` fallback previously
+  duplicated across `layout.tsx`, `robots.ts`, and `sitemap.ts` — the domain
+  is now sourced exclusively from the environment
+
 ### Fixed
 - `handle_new_user` and `handle_new_speaker_profile` trigger functions now use
   `SET search_path = ''` and fully-qualified `public.` table names, preventing
