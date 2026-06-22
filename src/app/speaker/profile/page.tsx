@@ -74,27 +74,44 @@ export default function SpeakerProfilePage() {
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (fileRef.current) fileRef.current.value = "";
     setUploading(true);
     const result = await uploadAvatar(file);
     if (result.error) error("Upload failed", result.error);
     else {
-      success("Photo uploaded!");
+      success("Profile photo updated!");
       setProfile((prev) => prev ? { ...prev, avatar_url: result.url ?? null } : prev);
     }
     setUploading(false);
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !sp) return;
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0 || !sp) return;
     e.target.value = "";
     setUploadingPhoto(true);
-    const result = await uploadSpeakerPhoto(file);
-    if (result.error) error("Upload failed", result.error);
-    else if (result.url) {
-      setSp({ ...sp, photo_urls: [...(sp.photo_urls ?? []), result.url] });
-      success("Photo added!");
+
+    let currentUrls = [...(sp.photo_urls ?? [])];
+    let uploaded = 0;
+    let firstError: string | null = null;
+
+    for (const file of files) {
+      if (currentUrls.length >= 5) {
+        if (!firstError) firstError = `Maximum 5 photos reached — ${files.length - uploaded} file(s) skipped.`;
+        break;
+      }
+      const result = await uploadSpeakerPhoto(file);
+      if (result.error) {
+        if (!firstError) firstError = result.error;
+      } else if (result.url) {
+        currentUrls = [...currentUrls, result.url];
+        uploaded++;
+      }
     }
+
+    setSp({ ...sp, photo_urls: currentUrls });
+    if (firstError) error("Upload issue", firstError);
+    if (uploaded > 0) success(uploaded === 1 ? "Photo added!" : `${uploaded} photos added!`);
     setUploadingPhoto(false);
   }
 
@@ -163,13 +180,26 @@ export default function SpeakerProfilePage() {
         <div className="bg-white border border-warm-gray rounded-2xl p-5">
           <h2 className="font-cormorant text-lg font-semibold text-ink mb-4">Profile Photo</h2>
           <div className="flex items-center gap-5">
-            {profile?.avatar_url ? (
-              <Image src={profile.avatar_url} alt="Avatar" width={80} height={80} className="rounded-2xl object-cover" />
-            ) : (
-              <div className="w-20 h-20 rounded-2xl bg-warm-gray flex items-center justify-center text-2xl font-bold text-mid-gray">
-                {profile?.full_name?.charAt(0) ?? "S"}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className="relative group shrink-0"
+              title="Click to change photo"
+            >
+              {profile?.avatar_url ? (
+                <Image src={profile.avatar_url} alt="Avatar" width={80} height={80} className="rounded-2xl object-cover" />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-warm-gray flex items-center justify-center text-2xl font-bold text-mid-gray">
+                  {profile?.full_name?.charAt(0) ?? "S"}
+                </div>
+              )}
+              <div className="absolute inset-0 rounded-2xl bg-ink/50 flex items-center justify-center opacity-0 group-hover:opacity-100 group-disabled:opacity-100 transition-opacity">
+                {uploading
+                  ? <Loader2 size={20} className="text-white animate-spin" />
+                  : <Camera size={20} className="text-white" />}
               </div>
-            )}
+            </button>
             <div>
               <input ref={fileRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
               <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} loading={uploading}>
@@ -250,6 +280,7 @@ export default function SpeakerProfilePage() {
             ref={photoInputRef}
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
             onChange={handlePhotoUpload}
           />

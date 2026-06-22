@@ -197,5 +197,5 @@ export async function uploadAvatar(file: File) {
 
   revalidatePath("/speaker/profile");
 
-  return { url: urlData.publicUrl };
+  return { url: `${urlData.publicUrl}?t=${Date.now()}` };
 }
