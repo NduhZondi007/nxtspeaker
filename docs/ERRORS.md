@@ -5,6 +5,26 @@ Append entries in reverse-chronological order (newest first).
 
 ---
 
+## 2026-06-22 · bug · Permanent /login ↔ /client/dashboard redirect loop after token expiry
+
+**Type:** bug
+**Affected:** `middleware.ts`
+**Severity:** critical
+
+**What happened:**
+Production site at nxtspeaker.co.za entered an infinite redirect loop cycling between `/login` and `/client/dashboard` roughly every second. Vercel runtime logs confirmed the pattern: `/login` (307) → `/` (200) → `/client/dashboard` (200) → back to `/login`.
+
+**Root cause:**
+The middleware only checked for the existence of the Supabase session cookie (`name.endsWith("-auth-token")`), not whether the access token inside it was still valid. When the Supabase JWT expired (default 1-hour TTL), the cookie remained but the token was stale. Server Components (`ClientLayout`, `dashboard/page.tsx`) called `supabase.auth.getUser()` which attempted to refresh the token via the refresh token, but Server Components cannot write cookies — the `setAll()` in `server.ts` is wrapped in a `try/catch` that silently ignores the cookie-write. The refresh failed, `getUser()` returned `null`, and each server component redirected to `/login`. The middleware then saw the old cookie and redirected back to `/`, creating the permanent loop.
+
+**Fix:**
+Rewrote `middleware.ts` to import `createServerClient` from `@supabase/ssr` and call `supabase.auth.getUser()`. Middleware can write cookies, so when the access token is expired, the client refreshes it via the refresh token and writes the new tokens to the response. Routing decisions now use the actual `user` object instead of cookie existence. The `NextResponse` ESM import workaround for the prior `__dirname` issue was preserved.
+
+**Prevention:**
+The `@supabase/ssr` middleware pattern (validate + refresh in middleware, read-only in Server Components) is now correctly implemented. Any future auth middleware must follow this pattern — never route on cookie existence alone.
+
+---
+
 ## 2026-06-16 · bug · SECURITY DEFINER trigger fails with "Database error saving new user"
 
 **Type:** bug

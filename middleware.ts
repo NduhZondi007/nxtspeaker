@@ -6,16 +6,48 @@ import type { NextRequest } from "next/server";
 // `connection`, pulling in app-render modules that use Import Attributes
 // syntax unsupported by Vercel's esbuild.
 import { NextResponse } from "next/dist/esm/server/web/spec-extension/response.js";
+import { createServerClient } from "@supabase/ssr";
 
-// Middleware only handles routing — it does NOT enforce security.
-// Real auth + role verification happens in server layouts via supabase.auth.getUser().
-//
-// We intentionally avoid importing @supabase/ssr here because createServerClient
-// initialises the Supabase client at module load time, which can crash the Edge
-// Runtime before any try/catch has a chance to run (MIDDLEWARE_INVOCATION_FAILED).
-// Checking for the session cookie is sufficient for routing decisions.
+export async function middleware(request: NextRequest) {
+  // Build a mutable response so refreshed session cookies can be attached.
+  let response = NextResponse.next({ request });
 
-export function middleware(request: NextRequest) {
+  // createServerClient from @supabase/ssr is fully Edge-compatible.
+  // The prior MIDDLEWARE_INVOCATION_FAILED error was caused by next/server
+  // (CJS __dirname), which is already fixed via the ESM import above.
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          // Write refreshed tokens into the request so downstream Server
+          // Components see them within this same request cycle.
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+          // Rebuild the response with the updated request, then write the
+          // cookies to the response so the browser receives the new tokens.
+          response = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  // getUser() validates the JWT and, when the access token is expired,
+  // uses the refresh token to obtain a new one — writing it back via
+  // setAll() above. Middleware is the only layer that can write cookies,
+  // so this is the correct and only place to handle token refresh.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { pathname } = request.nextUrl;
 
   const isProtected =
@@ -23,28 +55,21 @@ export function middleware(request: NextRequest) {
   const isAuthPage =
     pathname === "/login" || pathname === "/register";
 
-  // Supabase v2 session cookie: sb-<project-ref>-auth-token
-  const hasSession = request.cookies
-    .getAll()
-    .some(
-      ({ name }) =>
-        name.startsWith("sb-") && name.endsWith("-auth-token")
-    );
-
-  if (isProtected && !hasSession) {
+  if (isProtected && !user) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Authenticated users on auth pages → home page handles role routing
-  if (isAuthPage && hasSession) {
+  // Authenticated users on auth pages → home page handles role routing.
+  if (isAuthPage && user) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
   }
 
-  return NextResponse.next();
+  // Return the response with any refreshed session cookies attached.
+  return response;
 }
 
 export const config = {

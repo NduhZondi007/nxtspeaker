@@ -26,6 +26,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
   is now sourced exclusively from the environment
 
 ### Fixed
+- `middleware.ts` — replaced cookie-existence check with `createServerClient`
+  from `@supabase/ssr` so the middleware validates the JWT and refreshes expired
+  access tokens, eliminating the permanent `/login` ↔ `/client/dashboard`
+  redirect loop that occurred once the 1-hour Supabase access token expired
 - `handle_new_user` and `handle_new_speaker_profile` trigger functions now use
   `SET search_path = ''` and fully-qualified `public.` table names, preventing
   "Database error saving new user" when `supabase_auth_admin` fires triggers
