@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import Image from "next/image";
-import { Camera, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Camera, XCircle } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
@@ -113,36 +113,14 @@ export default function SpeakerProfilePage() {
       </TopBar>
 
       <div className="p-4 sm:p-6 max-w-2xl space-y-6">
-        {/* Visibility status banner */}
-        {sp.status === "PENDING_REVIEW" && (
-          <div className="flex items-start gap-3 bg-gold/10 border border-gold/30 rounded-2xl p-4">
-            <Clock size={18} className="text-gold shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-gold-dark">Your profile is under review</p>
-              <p className="text-xs text-charcoal mt-0.5">
-                Our team will activate your profile shortly. Clients cannot see your profile until it goes live.
-              </p>
-            </div>
-          </div>
-        )}
-        {sp.status === "ACTIVE" && (
-          <div className="flex items-start gap-3 bg-success/10 border border-success/30 rounded-2xl p-4">
-            <CheckCircle2 size={18} className="text-success shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-success">Your profile is live</p>
-              <p className="text-xs text-charcoal mt-0.5">
-                Clients can discover and book you on the platform.
-              </p>
-            </div>
-          </div>
-        )}
+        {/* Visibility status banner — only shown when not the normal active state */}
         {sp.status === "INACTIVE" && (
           <div className="flex items-start gap-3 bg-mid-gray/10 border border-mid-gray/30 rounded-2xl p-4">
             <XCircle size={18} className="text-mid-gray shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-mid-gray">Your profile is inactive</p>
+              <p className="text-sm font-semibold text-mid-gray">Your profile has been deactivated</p>
               <p className="text-xs text-charcoal mt-0.5">
-                Your profile is hidden from clients. Contact support to reactivate.
+                Clients cannot see your profile. Contact support if you believe this is an error.
               </p>
             </div>
           </div>
