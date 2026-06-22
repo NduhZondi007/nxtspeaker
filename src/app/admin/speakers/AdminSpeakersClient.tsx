@@ -15,6 +15,12 @@ const STATUS_COLORS: Record<string, string> = {
   PENDING_REVIEW: "bg-gold/15 text-gold border border-gold/30",
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+  PENDING_REVIEW: "Pending Review",
+};
+
 const TIER_COLORS = ["", "#8BA888", "#A8A87C", "#A88C7C", "#8C7CA8", "#C9A96E"];
 const TIER_LABELS = ["", "Emerging Talent", "Rising Professional", "Established Expert", "Industry Leader", "Celebrity Speaker"];
 
@@ -63,7 +69,7 @@ function SpeakerAdminCard({ speaker }: { speaker: SpeakerProfile }) {
                 {speaker.profiles?.full_name ?? "Speaker"}
               </h3>
               <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${STATUS_COLORS[speaker.status] ?? ""}`}>
-                {speaker.status}
+                {STATUS_LABELS[speaker.status] ?? speaker.status}
               </span>
             </div>
             <p className="text-xs text-mid-gray mt-0.5 line-clamp-1">{speaker.title}</p>
