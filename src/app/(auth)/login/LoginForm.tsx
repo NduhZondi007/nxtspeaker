@@ -78,33 +78,32 @@ export function LoginForm() {
 
       {/* Visual side */}
       <div
-        className="hidden lg:flex w-1/2 flex-col justify-end p-16"
+        className="hidden lg:flex w-1/2 flex-col justify-between p-16"
         style={{
           background: "linear-gradient(135deg, #0A0A0F 0%, #1a1208 50%, #2C2A26 100%)",
         }}
       >
-        <div
-          className="w-16 h-1 mb-8 rounded-full"
-          style={{ background: "linear-gradient(90deg, #C9A96E, transparent)" }}
-        />
-        <h2 className="font-cormorant text-5xl text-white font-bold leading-tight mb-4">
-          Africa&apos;s Premier<br />
-          <span className="text-gold">Speaker Platform</span>
-        </h2>
-        <p className="text-white/60 text-lg leading-relaxed max-w-sm">
-          Connect with world-class speakers who drive transformation across the continent.
-        </p>
-        <div className="mt-12 flex gap-8">
-          {[
-            { value: "500+", label: "Speakers" },
-            { value: "R2.4B", label: "Fees Facilitated" },
-            { value: "48h", label: "Response Time" },
-          ].map((stat) => (
-            <div key={stat.label}>
-              <p className="font-cormorant text-2xl font-bold text-gold">{stat.value}</p>
-              <p className="text-xs text-white/40 uppercase tracking-wide mt-0.5">{stat.label}</p>
-            </div>
-          ))}
+        {/* Brand mark */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gold/15 border border-gold/30 flex items-center justify-center">
+            <Mic2 size={20} className="text-gold" />
+          </div>
+          <span className="font-cormorant text-2xl text-white font-semibold tracking-wide">NxtSpeaker</span>
+        </div>
+
+        {/* Tagline */}
+        <div>
+          <div
+            className="w-16 h-1 mb-8 rounded-full"
+            style={{ background: "linear-gradient(90deg, #C9A96E, transparent)" }}
+          />
+          <h2 className="font-cormorant text-5xl text-white font-bold leading-tight mb-4">
+            Africa&apos;s Premier<br />
+            <span className="text-gold">Speaker Platform</span>
+          </h2>
+          <p className="text-white/60 text-lg leading-relaxed max-w-sm">
+            Connect with world-class speakers who drive transformation across the continent.
+          </p>
         </div>
       </div>
     </div>
