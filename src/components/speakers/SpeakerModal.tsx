@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { Star, MapPin, Globe, Monitor, Calendar, Award } from "lucide-react";
+import { Star, MapPin, Globe, Monitor, Calendar, Award, X } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { formatZAR } from "@/lib/utils/currency";
+import { getEmbedUrl } from "@/lib/utils/media";
 import type { SpeakerProfile, Review } from "@/lib/types/database";
 
 const TIER_LABELS = ["", "Emerging Talent", "Rising Professional", "Established Expert", "Industry Leader", "Celebrity Speaker"];
@@ -22,6 +23,7 @@ interface SpeakerModalProps {
 
 export function SpeakerModal({ speaker, reviews, onClose, onBook }: SpeakerModalProps) {
   const [tab, setTab] = useState<Tab>("profile");
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   if (!speaker) return null;
 
@@ -123,6 +125,43 @@ export function SpeakerModal({ speaker, reviews, onClose, onBook }: SpeakerModal
               <div>
                 <h3 className="font-cormorant text-lg font-semibold text-ink mb-2">About</h3>
                 <p className="text-sm text-charcoal leading-relaxed">{speaker.bio}</p>
+              </div>
+            )}
+
+            {speaker.profile_video_url && getEmbedUrl(speaker.profile_video_url) && (
+              <div>
+                <h3 className="font-cormorant text-lg font-semibold text-ink mb-2">Introduction Video</h3>
+                <div className="aspect-video rounded-xl overflow-hidden bg-warm-gray">
+                  <iframe
+                    src={getEmbedUrl(speaker.profile_video_url)!}
+                    className="w-full h-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title={`${speakerName} introduction video`}
+                  />
+                </div>
+              </div>
+            )}
+
+            {(speaker.photo_urls ?? []).length > 0 && (
+              <div>
+                <h3 className="font-cormorant text-lg font-semibold text-ink mb-2">Photos</h3>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {(speaker.photo_urls ?? []).map((url, i) => (
+                    <button
+                      key={url}
+                      onClick={() => setLightboxUrl(url)}
+                      className="relative w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-warm-gray"
+                    >
+                      <Image
+                        src={url}
+                        alt={`${speakerName} photo ${i + 1}`}
+                        fill
+                        className="object-cover hover:scale-105 transition-transform duration-200"
+                      />
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -260,6 +299,31 @@ export function SpeakerModal({ speaker, reviews, onClose, onBook }: SpeakerModal
           </div>
         )}
       </div>
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[60] bg-ink/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <div
+            className="relative max-w-2xl w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Image
+              src={lightboxUrl}
+              alt="Portfolio photo"
+              width={800}
+              height={600}
+              className="rounded-xl object-contain w-full h-auto max-h-[80vh]"
+            />
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="absolute top-2 right-2 p-1.5 rounded-lg bg-ink/60 text-white hover:bg-ink transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 }

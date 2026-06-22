@@ -40,6 +40,7 @@ export interface SpeakerProfile {
   total_events: number;
   avg_rating: number;
   profile_video_url: string | null;
+  photo_urls: string[];
   status: SpeakerStatus;
   created_at: string;
   updated_at: string;
@@ -153,6 +154,7 @@ export interface SpeakerProfileFormData {
   virtual_available: boolean;
   hybrid_available: boolean;
   tags: string[];
+  profile_video_url?: string | null;
 }
 
 export interface HospitalityRiderFormData {

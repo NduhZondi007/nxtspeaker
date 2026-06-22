@@ -27,6 +27,7 @@ export async function updateSpeakerProfile(data: Partial<SpeakerProfileFormData>
   if (data.virtual_available !== undefined)  safeUpdate.virtual_available = data.virtual_available;
   if (data.hybrid_available !== undefined)   safeUpdate.hybrid_available = data.hybrid_available;
   if (data.tags !== undefined)               safeUpdate.tags = data.tags;
+  if (data.profile_video_url !== undefined)  safeUpdate.profile_video_url = data.profile_video_url;
 
   if (Object.keys(safeUpdate).length === 0) return { error: "No valid fields to update" };
 
@@ -75,6 +76,89 @@ export async function updateRider(data: Partial<HospitalityRider>) {
 
   revalidatePath("/speaker/rider");
 
+  return { success: true };
+}
+
+const MAX_PHOTO_BYTES = 3 * 1024 * 1024; // 3 MB
+const MAX_PHOTOS = 5;
+
+export async function uploadSpeakerPhoto(file: File) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  if (!ALLOWED_MIME_TYPES.includes(file.type))
+    return { error: "Only JPG, PNG, WebP, or GIF images are allowed" };
+  if (file.size > MAX_PHOTO_BYTES)
+    return { error: "Photo must be under 3 MB" };
+
+  const { data: sp } = await supabase
+    .from("speaker_profiles")
+    .select("photo_urls")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!sp) return { error: "Speaker profile not found" };
+  if ((sp.photo_urls ?? []).length >= MAX_PHOTOS)
+    return { error: `Maximum ${MAX_PHOTOS} photos allowed` };
+
+  const ext = file.type.split("/")[1].replace("jpeg", "jpg");
+  const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("speaker-photos")
+    .upload(path, file, { upsert: false, contentType: file.type });
+  if (uploadError) return { error: uploadError.message };
+
+  const { data: urlData } = supabase.storage.from("speaker-photos").getPublicUrl(path);
+
+  const { error: dbError } = await supabase
+    .from("speaker_profiles")
+    .update({ photo_urls: [...(sp.photo_urls ?? []), urlData.publicUrl] })
+    .eq("user_id", user.id);
+
+  if (dbError) {
+    await supabase.storage.from("speaker-photos").remove([path]);
+    return { error: dbError.message };
+  }
+
+  revalidatePath("/speaker/profile");
+  revalidatePath("/client/discover");
+  return { url: urlData.publicUrl };
+}
+
+export async function removeSpeakerPhoto(url: string) {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Not authenticated" };
+
+  const bucketPrefix = "/storage/v1/object/public/speaker-photos/";
+  const prefixIndex = url.indexOf(bucketPrefix);
+  if (prefixIndex === -1) return { error: "Invalid photo URL" };
+  const storagePath = url.split("?")[0].slice(prefixIndex + bucketPrefix.length);
+
+  if (!storagePath.startsWith(`${user.id}/`))
+    return { error: "Not authorized to delete this photo" };
+
+  const { data: sp } = await supabase
+    .from("speaker_profiles")
+    .select("photo_urls")
+    .eq("user_id", user.id)
+    .single();
+  if (!sp) return { error: "Speaker profile not found" };
+
+  const { error: dbError } = await supabase
+    .from("speaker_profiles")
+    .update({ photo_urls: (sp.photo_urls as string[] ?? []).filter((u: string) => u !== url) })
+    .eq("user_id", user.id);
+  if (dbError) return { error: dbError.message };
+
+  await supabase.storage.from("speaker-photos").remove([storagePath]);
+
+  revalidatePath("/speaker/profile");
+  revalidatePath("/client/discover");
   return { success: true };
 }
 

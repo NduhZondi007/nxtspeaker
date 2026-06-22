@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import Image from "next/image";
-import { Camera, XCircle } from "lucide-react";
+import { Camera, XCircle, X, Loader2 } from "lucide-react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
-import { updateSpeakerProfile, uploadAvatar } from "@/app/actions/speakers";
+import { updateSpeakerProfile, uploadAvatar, uploadSpeakerPhoto, removeSpeakerPhoto } from "@/app/actions/speakers";
+import { getEmbedUrl } from "@/lib/utils/media";
 import type { SpeakerProfile, Profile } from "@/lib/types/database";
 
 const EXPERTISE_OPTIONS = [
@@ -25,7 +26,11 @@ export default function SpeakerProfilePage() {
   const [sp, setSp] = useState<SpeakerProfile | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [videoUrl, setVideoUrl] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [removingPhotoUrl, setRemovingPhotoUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const { success, error } = useToast();
   const supabase = useMemo(() => createClient(), []);
 
@@ -39,6 +44,7 @@ export default function SpeakerProfilePage() {
       ]);
       setProfile(p as Profile);
       setSp(s as SpeakerProfile);
+      setVideoUrl((s as SpeakerProfile)?.profile_video_url ?? "");
     }
     load();
   }, [supabase]);
@@ -58,6 +64,7 @@ export default function SpeakerProfilePage() {
       virtual_available: sp.virtual_available,
       hybrid_available: sp.hybrid_available,
       tags: sp.tags,
+      profile_video_url: videoUrl.trim() || null,
     });
     if (result.error) error("Save failed", result.error);
     else success("Profile saved!", "Your profile has been updated.");
@@ -75,6 +82,32 @@ export default function SpeakerProfilePage() {
       setProfile((prev) => prev ? { ...prev, avatar_url: result.url ?? null } : prev);
     }
     setUploading(false);
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !sp) return;
+    e.target.value = "";
+    setUploadingPhoto(true);
+    const result = await uploadSpeakerPhoto(file);
+    if (result.error) error("Upload failed", result.error);
+    else if (result.url) {
+      setSp({ ...sp, photo_urls: [...(sp.photo_urls ?? []), result.url] });
+      success("Photo added!");
+    }
+    setUploadingPhoto(false);
+  }
+
+  async function handleRemovePhoto(photoUrl: string) {
+    if (!sp) return;
+    setRemovingPhotoUrl(photoUrl);
+    const result = await removeSpeakerPhoto(photoUrl);
+    if (result.error) error("Remove failed", result.error);
+    else {
+      setSp({ ...sp, photo_urls: (sp.photo_urls ?? []).filter((u) => u !== photoUrl) });
+      success("Photo removed");
+    }
+    setRemovingPhotoUrl(null);
   }
 
   function toggleExpertise(tag: string) {
@@ -176,6 +209,87 @@ export default function SpeakerProfilePage() {
             value={sp.speaking_fee_zar}
             onChange={(e) => setSp({ ...sp, speaking_fee_zar: Number(e.target.value) })}
           />
+        </div>
+
+        {/* Introduction Video */}
+        <div className="bg-white border border-warm-gray rounded-2xl p-5 space-y-3">
+          <h2 className="font-cormorant text-lg font-semibold text-ink">Introduction Video</h2>
+          <p className="text-xs text-mid-gray">
+            Paste a YouTube or Vimeo URL. Shown to clients so they can see you in action before booking.
+          </p>
+          <Input
+            label="Video URL"
+            placeholder="https://www.youtube.com/watch?v=... or https://vimeo.com/..."
+            value={videoUrl}
+            onChange={(e) => setVideoUrl(e.target.value)}
+          />
+          {videoUrl && getEmbedUrl(videoUrl) && (
+            <div className="aspect-video rounded-xl overflow-hidden bg-warm-gray">
+              <iframe
+                src={getEmbedUrl(videoUrl)!}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title="Video preview"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Portfolio Photos */}
+        <div className="bg-white border border-warm-gray rounded-2xl p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-cormorant text-lg font-semibold text-ink">Portfolio Photos</h2>
+            <span className="text-xs text-mid-gray">{(sp.photo_urls ?? []).length} / 5</span>
+          </div>
+          <p className="text-xs text-mid-gray">
+            On-stage shots, event photos, or headshots. JPG, PNG up to 3 MB each.
+          </p>
+
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoUpload}
+          />
+
+          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+            {(sp.photo_urls ?? []).map((url) => (
+              <div key={url} className="relative aspect-square">
+                <Image src={url} alt="Portfolio photo" fill className="rounded-xl object-cover" />
+                {removingPhotoUrl === url ? (
+                  <div className="absolute inset-0 bg-ink/50 rounded-xl flex items-center justify-center">
+                    <Loader2 size={16} className="text-white animate-spin" />
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleRemovePhoto(url)}
+                    className="absolute top-1 right-1 w-5 h-5 bg-ink/70 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                    title="Remove photo"
+                  >
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
+            ))}
+            {(sp.photo_urls ?? []).length < 5 && (
+              <button
+                onClick={() => photoInputRef.current?.click()}
+                disabled={uploadingPhoto || !!removingPhotoUrl}
+                className="aspect-square rounded-xl border-2 border-dashed border-warm-gray flex flex-col items-center justify-center gap-1 text-mid-gray hover:border-gold hover:text-gold transition-colors disabled:opacity-50"
+              >
+                {uploadingPhoto ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <>
+                    <Camera size={18} />
+                    <span className="text-[10px]">Add photo</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Expertise */}
