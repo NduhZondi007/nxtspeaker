@@ -14,7 +14,7 @@ export default async function ClientDashboardPage() {
   if (!user) redirect("/login");
 
   const [{ data: profile }, { data: bks }, { data: sps }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("profiles").select("id, full_name").eq("id", user.id).single(),
     supabase.from("bookings").select("*, speaker_profiles(*, profiles(*))").eq("client_id", user.id).order("created_at", { ascending: false }).limit(5),
     supabase.from("speaker_profiles").select("*, profiles(*)").eq("status", "ACTIVE").eq("available", true).order("avg_rating", { ascending: false }).limit(4),
   ]);

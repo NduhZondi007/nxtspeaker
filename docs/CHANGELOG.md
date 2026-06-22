@@ -8,7 +8,61 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Performance
+- **Eliminated blank-screen loading delays** across all server-rendered pages:
+  - Added `loading.tsx` pulse-skeleton files at 8 route segments (`client/dashboard`,
+    `client/bookings`, `speaker/dashboard`, `speaker/bookings`, `admin/dashboard`,
+    `admin/bookings`, `admin/users`, `admin/speakers`) — Next.js now streams the skeleton
+    immediately after the layout resolves instead of blocking the browser until all DB
+    queries complete
+  - All three portal layouts (`client`, `speaker`, `admin`) narrowed from `select("*")` to
+    `select("id, full_name, avatar_url, role")` — profile fetch on every navigation now
+    transfers only the 4 fields the Sidebar actually uses
+  - `src/app/client/bookings/[id]/page.tsx` — merged two sequential `Promise.all` chains
+    into one parallel batch + one trailing query; messages now fetched in parallel with
+    booking/profile (only needed the URL `id` param, not the booking result)
+  - `src/app/speaker/bookings/[id]/page.tsx` — merged two sequential `Promise.all` chains
+    into one 4-way parallel batch; eliminates a full serial round-trip on every booking view
+  - `src/app/client/dashboard/page.tsx` — profile select narrowed to `id, full_name`
+  - `src/app/speaker/dashboard/page.tsx` — profile narrowed to `id, full_name, avatar_url`;
+    speaker profile narrowed to the 6 fields used on the dashboard; bookings query narrowed
+    to the 8 fields rendered
+  - `src/app/client/discover/page.tsx` — added `reviewCache` (`Map<string, Review[]>`)
+    so re-opening a speaker modal returns cached reviews instantly instead of re-fetching
+  - `src/lib/hooks/useRealtimeMessages.ts` — added `profileCache` ref
+    (`Map<string, Message["profiles"]>`) so each sender's profile is fetched at most once
+    per session instead of on every incoming realtime message (N+1 eliminated); also fixed
+    missing `channel.unsubscribe()` before `removeChannel()` that was leaking subscriptions
+  - `src/components/speakers/SpeakerModal.tsx` — added `sizes="96px"` to portfolio photo
+    strip images so Next.js Image serves correctly-sized variants
+
 ### Added
+- **Speaker media uploads** — speakers can now enrich their public profile with rich media:
+  - `supabase/migrations/20260622210000_storage-speaker-avatars-bucket.sql` — creates the
+    `speaker-avatars` bucket with public-read / owner-write RLS; fixes avatar upload which
+    was silently failing because the bucket was never provisioned via migration
+  - `supabase/migrations/20260622210001_speaker-photo-urls.sql` — adds `photo_urls TEXT[]
+    DEFAULT '{}'` column to `speaker_profiles` and creates a `speaker-photos` bucket with
+    matching RLS
+  - `src/lib/utils/media.ts` — `getEmbedUrl(url)` converts YouTube (`/watch?v=`, `youtu.be`)
+    and Vimeo URLs to embed URLs; shared between the profile editor and the client modal
+  - `src/app/actions/speakers.ts` — new `uploadSpeakerPhoto(file)` (max 5 photos, 3 MB each,
+    images only; uploads to `speaker-photos`, appends URL to `photo_urls`); new
+    `removeSpeakerPhoto(url)` (authorisation check on storage path prefix, removes from array
+    then deletes file); `profile_video_url` added to the `updateSpeakerProfile` whitelist
+  - `src/app/speaker/profile/page.tsx` — "Introduction Video" card (YouTube/Vimeo URL input
+    with live iframe preview); "Portfolio Photos" card (3-col / 5-col grid, per-photo remove
+    spinner, add-photo slot disabled during any upload/removal operation)
+  - `src/components/speakers/SpeakerModal.tsx` — Profile tab shows the video embed (below bio)
+    and a horizontally scrollable photo strip; clicking a photo opens a full-screen lightbox
+    overlay (`z-[60]`, above the modal)
+
+- **Speaker visibility controls** — new speakers are immediately live (ACTIVE by default);
+  admins can deactivate any speaker at any time from `/admin/speakers`:
+  - `src/app/speaker/profile/page.tsx` — deactivation banner shown when `status = INACTIVE`,
+    telling the speaker their profile is hidden and to contact support; no banner in the normal active state
+  - `src/app/admin/speakers/AdminSpeakersClient.tsx` — status badge shows human-readable
+    labels ("Active" / "Inactive" / "Pending Review") instead of raw enum values
 - Per-page SEO metadata: static `metadata` on admin/client/speaker portal
   layouts and login/register pages, `generateMetadata` on booking detail and
   chat pages (titles derived from `event_name`/`booking_number`/`full_name`)

@@ -20,7 +20,7 @@ export default async function SpeakerLayout({ children }: { children: React.Reac
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("*")
+    .select("id, full_name, avatar_url, role")
     .eq("id", user.id)
     .single();
 

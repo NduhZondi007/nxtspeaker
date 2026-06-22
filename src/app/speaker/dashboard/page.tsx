@@ -15,17 +15,17 @@ export default async function SpeakerDashboardPage() {
   if (!user) redirect("/login");
 
   const [{ data: profile }, { data: speakerProfile }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
-    supabase.from("speaker_profiles").select("*").eq("user_id", user.id).single(),
+    supabase.from("profiles").select("id, full_name, avatar_url").eq("id", user.id).single(),
+    supabase.from("speaker_profiles").select("id, bio, expertise, location, speaking_fee_zar, languages").eq("user_id", user.id).single(),
   ]);
 
   const { data: bks } = await supabase
     .from("bookings")
-    .select("*, profiles(*)")
+    .select("id, event_name, event_date, event_format, exact_location, status, quoted_fee_zar, profiles(full_name)")
     .eq("speaker_id", speakerProfile?.id ?? "")
     .order("created_at", { ascending: false });
 
-  const bookings = (bks ?? []) as Booking[];
+  const bookings = (bks ?? []) as unknown as Booking[];
 
   const pending = bookings.filter((b) => b.status === "PENDING");
   const confirmed = bookings.filter((b) => ["CONFIRMED", "DEPOSIT_PAID"].includes(b.status));

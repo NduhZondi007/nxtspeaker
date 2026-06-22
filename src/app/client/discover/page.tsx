@@ -33,6 +33,7 @@ export default function DiscoverPage() {
   const [speakerReviews, setSpeakerReviews] = useState<Review[]>([]);
   const [bookingSpeaker, setBookingSpeaker] = useState<SpeakerProfile | null>(null);
   const [bookingRider, setBookingRider] = useState<HospitalityRider | null>(null);
+  const [reviewCache, setReviewCache] = useState<Map<string, Review[]>>(new Map());
   const { profile } = useAuth();
   const { success, error } = useToast();
   const supabase = useMemo(() => createClient(), []);
@@ -92,12 +93,18 @@ export default function DiscoverPage() {
 
   async function handleSelectSpeaker(speaker: SpeakerProfile) {
     setSelectedSpeaker(speaker);
+    if (reviewCache.has(speaker.id)) {
+      setSpeakerReviews(reviewCache.get(speaker.id)!);
+      return;
+    }
     const { data: reviews } = await supabase
       .from("reviews")
       .select("*, profiles(*)")
       .eq("speaker_id", speaker.id)
       .order("created_at", { ascending: false });
-    setSpeakerReviews((reviews ?? []) as Review[]);
+    const r = (reviews ?? []) as Review[];
+    setReviewCache((prev) => new Map(prev).set(speaker.id, r));
+    setSpeakerReviews(r);
   }
 
   async function handleBook(speaker: SpeakerProfile) {

@@ -157,6 +157,7 @@ export function SpeakerModal({ speaker, reviews, onClose, onBook }: SpeakerModal
                         src={url}
                         alt={`${speakerName} photo ${i + 1}`}
                         fill
+                        sizes="96px"
                         className="object-cover hover:scale-105 transition-transform duration-200"
                       />
                     </button>

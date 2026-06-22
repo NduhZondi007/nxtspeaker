@@ -40,30 +40,28 @@ export default async function ClientBookingDetailPage({ params }: Props) {
 
   if (!user) redirect("/login");
 
-  const [{ data: booking }, { data: profile }] = await Promise.all([
+  const [{ data: booking }, { data: profile }, { data: messages }] = await Promise.all([
     supabase
       .from("bookings")
       .select("*, speaker_profiles(*, profiles(*)), profiles(*)")
       .eq("id", id)
       .eq("client_id", user.id)
       .single(),
-    supabase.from("profiles").select("*").eq("id", user.id).single(),
+    supabase.from("profiles").select("id, full_name, avatar_url, role").eq("id", user.id).single(),
+    supabase
+      .from("messages")
+      .select("*, profiles(id, full_name, avatar_url, role)")
+      .eq("booking_id", id)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (!booking) notFound();
 
-  const [{ data: messages }, { data: rider }] = await Promise.all([
-    supabase
-      .from("messages")
-      .select("*, profiles(*)")
-      .eq("booking_id", id)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("hospitality_riders")
-      .select("*")
-      .eq("speaker_id", (booking as Booking).speaker_profiles?.id ?? "")
-      .single(),
-  ]);
+  const { data: rider } = await supabase
+    .from("hospitality_riders")
+    .select("*")
+    .eq("speaker_id", (booking as Booking).speaker_profiles?.id ?? "")
+    .single();
 
   const speaker = (booking as Booking).speaker_profiles;
   const speakerName = speaker?.profiles?.full_name ?? "Speaker";
