@@ -5,6 +5,30 @@ Append entries in reverse-chronological order (newest first).
 
 ---
 
+## 2026-06-22 · bug · Infinite recursion in profiles RLS policy breaks every authenticated user
+
+**Type:** bug
+**Affected:** `supabase/migrations/20260616210049_admin-role.sql` — RLS policies on `public.profiles` and `public.speaker_profiles`
+**Severity:** critical (every authenticated user session broken — profile unreachable → redirect to /login)
+
+**What happened:**
+Every newly registered (and existing) user was redirected to `/login` after sign-in. Session cookies were valid and `getUser()` succeeded, but the ClientLayout's profile query threw PostgreSQL error `42P17: infinite recursion detected in policy for relation "profiles"`, causing `profile` to be null and triggering the `if (!profile) redirect("/login")` guard.
+
+**Root cause:**
+The admin role migration (`20260616210049_admin-role.sql`) added two circular chains in RLS policies:
+
+1. **Direct loop on `profiles`:** "Admins can view all profiles" (FOR SELECT on `profiles`) contained `EXISTS (SELECT 1 FROM public.profiles WHERE ...)` — a self-referential subquery that PostgreSQL catches as infinite recursion.
+
+2. **Indirect loop via `speaker_profiles`:** "Admins can manage all speaker profiles" (FOR ALL on `speaker_profiles`) queried `profiles` to check admin status. A `profiles` SELECT policy ("Authenticated users can view speaker profiles") queries `speaker_profiles`, completing the cycle: `profiles → speaker_profiles → profiles`.
+
+**Fix:**
+Migration `20260622194851_fix-profiles-rls-recursion.sql` — replaced both offending EXISTS subqueries with `(auth.jwt() -> 'app_metadata' ->> 'role') = 'ADMIN'`. Reading from the JWT claim requires no table query, making recursion impossible.
+
+**Prevention:**
+Never write an RLS policy on table X that queries table X (direct recursion). Also watch for indirect chains: if table A's policy queries table B, and table B's policy queries table A, the same error occurs on any SELECT involving either table. Always use JWT claims (`auth.jwt()`) for role checks inside RLS policies — never query the same or a cross-referencing table.
+
+---
+
 ## 2026-06-22 · bug · Permanent /login ↔ /client/dashboard redirect loop after token expiry
 
 **Type:** bug

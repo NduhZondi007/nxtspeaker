@@ -26,6 +26,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
   is now sourced exclusively from the environment
 
 ### Fixed
+- `supabase/migrations/20260622194851_fix-profiles-rls-recursion.sql` — replaced
+  self-referential `EXISTS (SELECT 1 FROM profiles ...)` subquery in "Admins can view
+  all profiles" and the indirect chain through "Admins can manage all speaker profiles"
+  with `(auth.jwt() -> 'app_metadata' ->> 'role') = 'ADMIN'`; eliminates PostgreSQL
+  `42P17` infinite recursion that broke every authenticated user's profile query
 - `middleware.ts` — replaced cookie-existence check with `createServerClient`
   from `@supabase/ssr` so the middleware validates the JWT and refreshes expired
   access tokens, eliminating the permanent `/login` ↔ `/client/dashboard`
