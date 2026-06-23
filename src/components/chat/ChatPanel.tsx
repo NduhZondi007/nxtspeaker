@@ -29,10 +29,9 @@ export function ChatPanel({ booking, initialMessages, currentUser, onSend }: Cha
 
   return (
     <div className="flex flex-col h-full">
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
-          <div className="text-center py-8 text-sm text-mid-gray">
+          <div className="text-center py-8 text-sm text-muted">
             No messages yet. Start the conversation.
           </div>
         )}
@@ -45,21 +44,21 @@ export function ChatPanel({ booking, initialMessages, currentUser, onSend }: Cha
             >
               <div className={`max-w-[85%] sm:max-w-[70%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-1`}>
                 {!isMe && (
-                  <p className="text-[10px] text-mid-gray px-1">
+                  <p className="text-[10px] text-muted px-1">
                     {msg.profiles?.full_name ?? "Participant"}
                   </p>
                 )}
                 <div
                   className={[
-                    "px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed break-words",
+                    "px-3.5 py-2.5 rounded-[12px] text-sm leading-relaxed break-words",
                     isMe
-                      ? "bg-gold text-ink rounded-br-md"
-                      : "bg-warm-gray text-charcoal rounded-bl-md",
+                      ? "bg-primary text-white rounded-br-sm"
+                      : "bg-soft text-ink rounded-bl-sm",
                   ].join(" ")}
                 >
                   {msg.content}
                 </div>
-                <p className="text-[10px] text-mid-gray px-1">
+                <p className="text-[10px] text-muted px-1">
                   {new Date(msg.created_at).toLocaleTimeString("en-ZA", {
                     hour: "2-digit",
                     minute: "2-digit",
@@ -72,7 +71,6 @@ export function ChatPanel({ booking, initialMessages, currentUser, onSend }: Cha
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
       <ChatInput onSend={(content) => onSend(booking.id, content)} />
     </div>
   );

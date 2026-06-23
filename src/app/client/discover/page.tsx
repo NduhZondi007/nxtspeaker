@@ -143,18 +143,18 @@ export default function DiscoverPage() {
         {loading ? (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="h-72 bg-warm-gray rounded-2xl animate-pulse" />
+              <div key={i} className="h-72 bg-soft rounded-[12px] animate-pulse" />
             ))}
           </div>
         ) : speakers.length === 0 ? (
           <div className="text-center py-20">
-            <Users size={40} className="text-warm-gray mx-auto mb-4" />
-            <h3 className="font-cormorant text-2xl text-mid-gray font-semibold">No speakers found</h3>
-            <p className="text-sm text-mid-gray mt-2">Try adjusting your filters</p>
+            <Users size={40} className="text-line mx-auto mb-4" />
+            <h3 className="font-archivo font-black text-muted uppercase tracking-tight">No speakers found</h3>
+            <p className="text-sm text-muted mt-2">Try adjusting your filters</p>
           </div>
         ) : (
           <>
-            <p className="text-xs text-mid-gray">
+            <p className="text-xs text-muted">
               {speakers.length} speaker{speakers.length !== 1 ? "s" : ""} found
             </p>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

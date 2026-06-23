@@ -34,10 +34,7 @@ export default async function ClientBookingDetailPage({ params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const [{ data: booking }, { data: profile }, { data: messages }] = await Promise.all([
@@ -63,7 +60,7 @@ export default async function ClientBookingDetailPage({ params }: Props) {
     .eq("speaker_id", (booking as Booking).speaker_profiles?.id ?? "")
     .single();
 
-  const speaker = (booking as Booking).speaker_profiles;
+  const speaker     = (booking as Booking).speaker_profiles;
   const speakerName = speaker?.profiles?.full_name ?? "Speaker";
 
   async function handleSendMessage(bookingId: string, content: string) {
@@ -73,73 +70,68 @@ export default async function ClientBookingDetailPage({ params }: Props) {
 
   return (
     <div>
-      <TopBar
-        title={booking.event_name}
-        subtitle={`Booking ref: ${booking.booking_number}`}
-      >
+      <TopBar title={booking.event_name} subtitle={`Booking ref: ${booking.booking_number}`}>
         <Link href="/client/bookings">
-          <button className="flex items-center gap-1.5 text-sm text-mid-gray hover:text-charcoal transition-colors">
+          <button className="flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
             <ArrowLeft size={14} /> Back
           </button>
         </Link>
       </TopBar>
 
       <div className="p-4 sm:p-6 grid lg:grid-cols-3 gap-6">
-        {/* Main info */}
         <div className="lg:col-span-2 space-y-4">
           {/* Status card */}
-          <div className="bg-white border border-warm-gray rounded-2xl p-5">
+          <div className="bg-white border border-line rounded-[12px] p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-cormorant text-xl font-semibold text-ink">Booking Details</h2>
+              <h2 className="font-archivo font-bold text-primary">Booking Details</h2>
               <BookingStatusBadge status={booking.status} />
             </div>
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
               {[
-                { label: "Speaker", value: speakerName },
+                { label: "Speaker",   value: speakerName },
                 { label: "Event Date", value: new Date(booking.event_date).toLocaleDateString("en-ZA", { year: "numeric", month: "long", day: "numeric" }) },
-                { label: "Location", value: booking.exact_location },
-                { label: "Format", value: booking.event_format },
-                { label: "Duration", value: `${booking.duration_minutes} minutes` },
+                { label: "Location",  value: booking.exact_location },
+                { label: "Format",    value: booking.event_format },
+                { label: "Duration",  value: `${booking.duration_minutes} minutes` },
                 { label: "Organiser", value: booking.event_organiser },
-                { label: "Company", value: booking.associated_company },
-                { label: "Audience", value: booking.audience_demographics },
+                { label: "Company",   value: booking.associated_company },
+                { label: "Audience",  value: booking.audience_demographics },
               ].map((row) => (
                 <div key={row.label}>
-                  <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide">{row.label}</p>
-                  <p className="text-charcoal mt-0.5">{row.value}</p>
+                  <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide">{row.label}</p>
+                  <p className="text-ink mt-0.5">{row.value}</p>
                 </div>
               ))}
               <div>
-                <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide">Quoted Fee</p>
-                <p className="font-cormorant text-xl font-bold text-gold mt-0.5">{formatZAR(booking.quoted_fee_zar)}</p>
+                <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide">Quoted Fee</p>
+                <p className="font-space-mono text-xl font-bold text-secondary mt-0.5">{formatZAR(booking.quoted_fee_zar)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide">Rider Agreed</p>
-                <p className="text-charcoal mt-0.5">{booking.hospitality_rider_agreed ? "✓ Yes" : "No"}</p>
+                <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide">Rider Agreed</p>
+                <p className="text-ink mt-0.5">{booking.hospitality_rider_agreed ? "✓ Yes" : "No"}</p>
               </div>
             </div>
             {booking.client_notes && (
-              <div className="mt-4 pt-4 border-t border-warm-gray">
-                <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide mb-1">Notes</p>
-                <p className="text-sm text-charcoal">{booking.client_notes}</p>
+              <div className="mt-4 pt-4 border-t border-line">
+                <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide mb-1">Notes</p>
+                <p className="text-sm text-ink">{booking.client_notes}</p>
               </div>
             )}
           </div>
 
-          {/* Hospitality rider */}
           {rider && (
-            <div className="bg-white border border-warm-gray rounded-2xl p-5">
-              <h2 className="font-cormorant text-xl font-semibold text-ink mb-4">Hospitality Rider</h2>
+            <div className="bg-white border border-line rounded-[12px] p-5">
+              <h2 className="font-archivo font-bold text-primary mb-4">Hospitality Rider</h2>
               <HospitalityRiderView rider={rider} speakerName={speakerName} />
             </div>
           )}
         </div>
 
         {/* Chat panel */}
-        <div className="bg-white border border-warm-gray rounded-2xl overflow-hidden flex flex-col" style={{ minHeight: "300px" }}>
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-warm-gray">
-            <MessageSquare size={16} className="text-gold" />
-            <h2 className="font-cormorant text-lg font-semibold text-ink">Chat with {speakerName}</h2>
+        <div className="bg-white border border-line rounded-[12px] overflow-hidden flex flex-col" style={{ minHeight: "300px" }}>
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-line">
+            <MessageSquare size={16} className="text-secondary" />
+            <h2 className="font-archivo font-bold text-primary">Chat with {speakerName}</h2>
           </div>
           {profile && (
             <ChatPanel

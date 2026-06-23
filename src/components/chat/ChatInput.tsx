@@ -46,7 +46,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   }
 
   return (
-    <div className="relative flex items-end gap-3 p-4 border-t border-warm-gray bg-white">
+    <div className="relative flex items-end gap-3 p-4 border-t border-line bg-white">
       {showBrandCard && <BrandMentionCard />}
       <textarea
         ref={textareaRef}
@@ -57,16 +57,16 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         disabled={disabled || sending}
         rows={1}
         placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-        className="flex-1 resize-none px-3 py-2.5 text-sm border border-warm-gray rounded-xl bg-cream text-charcoal placeholder:text-mid-gray focus:outline-none focus:ring-2 focus:ring-gold/20 focus:border-gold transition-all disabled:opacity-50"
+        className="flex-1 resize-none px-3 py-2.5 text-sm border border-line rounded-[8px] bg-white text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all disabled:opacity-50"
         style={{ minHeight: "42px", maxHeight: "120px" }}
       />
       <button
         onClick={handleSend}
         disabled={!value.trim() || disabled || sending}
-        className="w-10 h-10 rounded-xl bg-gold text-ink flex items-center justify-center transition-all hover:bg-gold-light disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+        className="w-10 h-10 rounded-[8px] bg-primary text-white flex items-center justify-center transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
       >
         {sending ? (
-          <span className="w-4 h-4 border-2 border-ink border-t-transparent rounded-full animate-spin" />
+          <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
         ) : (
           <Send size={16} />
         )}

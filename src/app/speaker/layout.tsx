@@ -29,7 +29,7 @@ export default async function SpeakerLayout({ children }: { children: React.Reac
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen bg-cream">
+      <div className="flex min-h-screen bg-white">
         <Sidebar role="SPEAKER" userName={profile.full_name} avatarUrl={profile.avatar_url} isAdmin={profile.role === "ADMIN"} />
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
       </div>

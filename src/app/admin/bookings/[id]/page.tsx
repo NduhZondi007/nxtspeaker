@@ -82,7 +82,7 @@ export default async function AdminBookingDetailPage({ params }: Props) {
     <div>
       <TopBar title={b.event_name} subtitle={`Ref: ${b.booking_number}`}>
         <Link href="/admin/bookings">
-          <button className="flex items-center gap-1.5 text-sm text-mid-gray hover:text-charcoal transition-colors">
+          <button className="flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
             <ArrowLeft size={14} /> Bookings
           </button>
         </Link>
@@ -91,8 +91,8 @@ export default async function AdminBookingDetailPage({ params }: Props) {
       <div className="p-4 sm:p-6 grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
           {/* Admin action bar */}
-          <div className="bg-white border border-gold/30 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-mid-gray uppercase tracking-wide mb-3">Admin Actions</p>
+          <div className="bg-white border border-accent/20 rounded-[12px] p-4">
+            <p className="text-xs font-space-mono font-semibold text-muted uppercase tracking-wide mb-3">Admin Actions</p>
             <div className="flex flex-wrap gap-2">
               {confirmable && (
                 <form action={async () => { "use server"; await adminUpdateBookingStatus(id, "CONFIRMED"); }}>
@@ -119,9 +119,9 @@ export default async function AdminBookingDetailPage({ params }: Props) {
           </div>
 
           {/* Booking details */}
-          <div className="bg-white border border-warm-gray rounded-2xl p-5">
+          <div className="bg-white border border-line rounded-[12px] p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-cormorant text-xl font-semibold text-ink">Booking Details</h2>
+              <h2 className="font-archivo font-bold text-primary">Booking Details</h2>
               <BookingStatusBadge status={b.status} />
             </div>
             <div className="grid sm:grid-cols-2 gap-3 text-sm">
@@ -138,48 +138,48 @@ export default async function AdminBookingDetailPage({ params }: Props) {
                 { label: "Booking Ref", value: b.booking_number },
               ].map((row) => (
                 <div key={row.label}>
-                  <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide">{row.label}</p>
-                  <p className="text-charcoal mt-0.5">{row.value}</p>
+                  <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide">{row.label}</p>
+                  <p className="text-ink mt-0.5">{row.value}</p>
                 </div>
               ))}
               <div>
-                <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide">Quoted Fee</p>
-                <p className="font-cormorant text-xl font-bold text-gold mt-0.5">{formatZAR(b.quoted_fee_zar)}</p>
+                <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide">Quoted Fee</p>
+                <p className="font-space-mono text-xl font-bold text-secondary mt-0.5">{formatZAR(b.quoted_fee_zar)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide">Rider Agreed</p>
-                <p className="text-charcoal mt-0.5">{b.hospitality_rider_agreed ? "✓ Yes" : "No"}</p>
+                <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide">Rider Agreed</p>
+                <p className="text-ink mt-0.5">{b.hospitality_rider_agreed ? "✓ Yes" : "No"}</p>
               </div>
             </div>
             {b.client_notes && (
-              <div className="mt-4 pt-4 border-t border-warm-gray">
-                <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide mb-1">Client Notes</p>
-                <p className="text-sm text-charcoal">{b.client_notes}</p>
+              <div className="mt-4 pt-4 border-t border-line">
+                <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide mb-1">Client Notes</p>
+                <p className="text-sm text-ink">{b.client_notes}</p>
               </div>
             )}
             {b.cancelled_reason && (
-              <div className="mt-4 pt-4 border-t border-warm-gray">
-                <p className="text-[10px] font-semibold text-mid-gray uppercase tracking-wide mb-1">Cancellation Reason</p>
-                <p className="text-sm text-charcoal">{b.cancelled_reason}</p>
+              <div className="mt-4 pt-4 border-t border-line">
+                <p className="text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide mb-1">Cancellation Reason</p>
+                <p className="text-sm text-ink">{b.cancelled_reason}</p>
               </div>
             )}
           </div>
 
           {rider && (
-            <div className="bg-white border border-warm-gray rounded-2xl p-5">
-              <h2 className="font-cormorant text-xl font-semibold text-ink mb-4">Hospitality Rider</h2>
+            <div className="bg-white border border-line rounded-[12px] p-5">
+              <h2 className="font-archivo font-bold text-primary mb-4">Hospitality Rider</h2>
               <HospitalityRiderView rider={rider} speakerName={speakerName} />
             </div>
           )}
         </div>
 
         {/* Chat panel */}
-        <div className="bg-white border border-warm-gray rounded-2xl overflow-hidden flex flex-col" style={{ minHeight: "300px" }}>
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-warm-gray">
-            <MessageSquare size={16} className="text-gold" />
+        <div className="bg-white border border-line rounded-[12px] overflow-hidden flex flex-col" style={{ minHeight: "300px" }}>
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-line">
+            <MessageSquare size={16} className="text-secondary" />
             <div className="flex-1 min-w-0">
-              <h2 className="font-cormorant text-lg font-semibold text-ink truncate">Chat</h2>
-              <p className="text-[10px] text-mid-gray">{clientName} ↔ {speakerName}</p>
+              <h2 className="font-archivo font-bold text-primary truncate">Chat</h2>
+              <p className="text-[10px] text-muted">{clientName} ↔ {speakerName}</p>
             </div>
           </div>
           {profile && (

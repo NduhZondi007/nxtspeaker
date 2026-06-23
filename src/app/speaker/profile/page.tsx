@@ -7,6 +7,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
+import { useAuth } from "@/components/layout/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
 import { updateSpeakerProfile, saveAvatarUrl, saveSpeakerPhotoUrl, removeSpeakerPhoto } from "@/app/actions/speakers";
 import { getEmbedUrl } from "@/lib/utils/media";
@@ -32,22 +33,22 @@ export default function SpeakerProfilePage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const { success, error } = useToast();
+  const { user } = useAuth();
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
+    if (!user) return;
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
       const [{ data: p }, { data: s }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user.id).single(),
-        supabase.from("speaker_profiles").select("*, profiles(*)").eq("user_id", user.id).single(),
+        supabase.from("profiles").select("*").eq("id", user!.id).single(),
+        supabase.from("speaker_profiles").select("*, profiles(*)").eq("user_id", user!.id).single(),
       ]);
       setProfile(p as Profile);
       setSp(s as SpeakerProfile);
       setVideoUrl((s as SpeakerProfile)?.profile_video_url ?? "");
     }
     load();
-  }, [supabase]);
+  }, [user, supabase]);
 
   async function handleSave() {
     if (!sp) return;
@@ -88,11 +89,11 @@ export default function SpeakerProfilePage() {
 
     setUploading(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { error("Upload failed", "Not authenticated"); setUploading(false); return; }
+    const { data: { user: freshUser } } = await supabase.auth.getUser();
+    if (!freshUser) { error("Upload failed", "Not authenticated"); setUploading(false); return; }
 
     const ext = file.type.split("/")[1].replace("jpeg", "jpg");
-    const path = `${user.id}/avatar.${ext}`;
+    const path = `${freshUser.id}/avatar.${ext}`;
 
     const { error: uploadError } = await supabase.storage
       .from("speaker-avatars")
@@ -122,8 +123,8 @@ export default function SpeakerProfilePage() {
     e.target.value = "";
 
     const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { error("Upload failed", "Not authenticated"); return; }
+    const { data: { user: freshUser } } = await supabase.auth.getUser();
+    if (!freshUser) { error("Upload failed", "Not authenticated"); return; }
 
     setUploadingPhoto(true);
 
@@ -146,7 +147,7 @@ export default function SpeakerProfilePage() {
       }
 
       const ext = file.type.split("/")[1].replace("jpeg", "jpg");
-      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const path = `${freshUser.id}/${crypto.randomUUID()}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("speaker-photos")
@@ -161,7 +162,6 @@ export default function SpeakerProfilePage() {
       const result = await saveSpeakerPhotoUrl(urlData.publicUrl);
 
       if (result.error) {
-        // Roll back the storage upload if DB save failed
         await supabase.storage.from("speaker-photos").remove([path]);
         if (!firstError) firstError = result.error;
       } else if (result.url) {
@@ -211,7 +211,7 @@ export default function SpeakerProfilePage() {
       <div>
         <TopBar title="My Profile" />
         <div className="p-6">
-          <div className="h-96 bg-warm-gray rounded-2xl animate-pulse" />
+          <div className="h-96 bg-soft rounded-[12px] animate-pulse" />
         </div>
       </div>
     );
@@ -224,13 +224,12 @@ export default function SpeakerProfilePage() {
       </TopBar>
 
       <div className="p-4 sm:p-6 max-w-2xl space-y-6">
-        {/* Visibility status banner — only shown when not the normal active state */}
         {sp.status === "INACTIVE" && (
-          <div className="flex items-start gap-3 bg-mid-gray/10 border border-mid-gray/30 rounded-2xl p-4">
-            <XCircle size={18} className="text-mid-gray shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 bg-muted/10 border border-muted/30 rounded-[12px] p-4">
+            <XCircle size={18} className="text-muted shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-semibold text-mid-gray">Your profile has been deactivated</p>
-              <p className="text-xs text-charcoal mt-0.5">
+              <p className="text-sm font-semibold text-muted">Your profile has been deactivated</p>
+              <p className="text-xs text-ink mt-0.5">
                 Clients cannot see your profile. Contact support if you believe this is an error.
               </p>
             </div>
@@ -238,8 +237,8 @@ export default function SpeakerProfilePage() {
         )}
 
         {/* Avatar */}
-        <div className="bg-white border border-warm-gray rounded-2xl p-5">
-          <h2 className="font-cormorant text-lg font-semibold text-ink mb-4">Profile Photo</h2>
+        <div className="bg-white border border-line rounded-[12px] p-5">
+          <h2 className="font-archivo font-bold text-primary mb-4">Profile Photo</h2>
           <div className="flex items-center gap-5">
             <button
               type="button"
@@ -249,13 +248,13 @@ export default function SpeakerProfilePage() {
               title="Click to change photo"
             >
               {profile?.avatar_url ? (
-                <Image src={profile.avatar_url} alt="Avatar" width={80} height={80} className="rounded-2xl object-cover" />
+                <Image src={profile.avatar_url} alt="Avatar" width={80} height={80} className="rounded-[12px] object-cover" />
               ) : (
-                <div className="w-20 h-20 rounded-2xl bg-warm-gray flex items-center justify-center text-2xl font-bold text-mid-gray">
+                <div className="w-20 h-20 rounded-[12px] bg-soft flex items-center justify-center text-2xl font-bold text-muted">
                   {profile?.full_name?.charAt(0) ?? "S"}
                 </div>
               )}
-              <div className="absolute inset-0 rounded-2xl bg-ink/50 flex items-center justify-center opacity-0 group-hover:opacity-100 group-disabled:opacity-100 transition-opacity">
+              <div className="absolute inset-0 rounded-[12px] bg-ink/50 flex items-center justify-center opacity-0 group-hover:opacity-100 group-disabled:opacity-100 transition-opacity">
                 {uploading
                   ? <Loader2 size={20} className="text-white animate-spin" />
                   : <Camera size={20} className="text-white" />}
@@ -266,7 +265,7 @@ export default function SpeakerProfilePage() {
               <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} loading={uploading}>
                 <Camera size={14} /> {uploading ? "Uploading..." : "Upload Photo"}
               </Button>
-              <p className="text-xs text-mid-gray mt-1.5 leading-relaxed">
+              <p className="text-xs text-muted mt-1.5 leading-relaxed">
                 Square crop works best — min <span className="font-medium text-ink">400 × 400 px</span>.
                 <br />JPG, PNG, WebP · max 5 MB
               </p>
@@ -275,8 +274,8 @@ export default function SpeakerProfilePage() {
         </div>
 
         {/* Basic info */}
-        <div className="bg-white border border-warm-gray rounded-2xl p-5 space-y-4">
-          <h2 className="font-cormorant text-lg font-semibold text-ink">Basic Information</h2>
+        <div className="bg-white border border-line rounded-[12px] p-5 space-y-4">
+          <h2 className="font-archivo font-bold text-primary">Basic Information</h2>
           <Input
             label="Speaker Title / Tagline"
             placeholder="e.g. AI & Digital Transformation for African Enterprises"
@@ -306,9 +305,9 @@ export default function SpeakerProfilePage() {
         </div>
 
         {/* Introduction Video */}
-        <div className="bg-white border border-warm-gray rounded-2xl p-5 space-y-3">
-          <h2 className="font-cormorant text-lg font-semibold text-ink">Introduction Video</h2>
-          <p className="text-xs text-mid-gray">
+        <div className="bg-white border border-line rounded-[12px] p-5 space-y-3">
+          <h2 className="font-archivo font-bold text-primary">Introduction Video</h2>
+          <p className="text-xs text-muted">
             Paste a YouTube or Vimeo URL. Shown to clients so they can see you in action before booking.
           </p>
           <Input
@@ -318,7 +317,7 @@ export default function SpeakerProfilePage() {
             onChange={(e) => setVideoUrl(e.target.value)}
           />
           {videoUrl && getEmbedUrl(videoUrl) && (
-            <div className="aspect-video rounded-xl overflow-hidden bg-warm-gray">
+            <div className="aspect-video rounded-[8px] overflow-hidden bg-soft">
               <iframe
                 src={getEmbedUrl(videoUrl)!}
                 className="w-full h-full"
@@ -331,12 +330,12 @@ export default function SpeakerProfilePage() {
         </div>
 
         {/* Portfolio Photos */}
-        <div className="bg-white border border-warm-gray rounded-2xl p-5 space-y-4">
+        <div className="bg-white border border-line rounded-[12px] p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-cormorant text-lg font-semibold text-ink">Portfolio Photos</h2>
-            <span className="text-xs text-mid-gray">{(sp.photo_urls ?? []).length} / 5</span>
+            <h2 className="font-archivo font-bold text-primary">Portfolio Photos</h2>
+            <span className="text-xs text-muted font-space-mono">{(sp.photo_urls ?? []).length} / 5</span>
           </div>
-          <p className="text-xs text-mid-gray leading-relaxed">
+          <p className="text-xs text-muted leading-relaxed">
             On-stage shots, event photos, or headshots. Landscape{" "}
             <span className="font-medium text-ink">4:3</span> recommended — min{" "}
             <span className="font-medium text-ink">800 × 600 px</span>.
@@ -355,9 +354,9 @@ export default function SpeakerProfilePage() {
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
             {(sp.photo_urls ?? []).map((url) => (
               <div key={url} className="relative aspect-square">
-                <Image src={url} alt="Portfolio photo" fill className="rounded-xl object-cover" />
+                <Image src={url} alt="Portfolio photo" fill className="rounded-[8px] object-cover" />
                 {removingPhotoUrl === url ? (
-                  <div className="absolute inset-0 bg-ink/50 rounded-xl flex items-center justify-center">
+                  <div className="absolute inset-0 bg-ink/50 rounded-[8px] flex items-center justify-center">
                     <Loader2 size={16} className="text-white animate-spin" />
                   </div>
                 ) : (
@@ -375,7 +374,7 @@ export default function SpeakerProfilePage() {
               <button
                 onClick={() => photoInputRef.current?.click()}
                 disabled={uploadingPhoto || !!removingPhotoUrl}
-                className="aspect-square rounded-xl border-2 border-dashed border-warm-gray flex flex-col items-center justify-center gap-1 text-mid-gray hover:border-gold hover:text-gold transition-colors disabled:opacity-50"
+                className="aspect-square rounded-[8px] border-2 border-dashed border-line flex flex-col items-center justify-center gap-1 text-muted hover:border-secondary hover:text-secondary transition-colors disabled:opacity-50"
               >
                 {uploadingPhoto ? (
                   <Loader2 size={18} className="animate-spin" />
@@ -391,8 +390,8 @@ export default function SpeakerProfilePage() {
         </div>
 
         {/* Expertise */}
-        <div className="bg-white border border-warm-gray rounded-2xl p-5">
-          <h2 className="font-cormorant text-lg font-semibold text-ink mb-3">Expertise</h2>
+        <div className="bg-white border border-line rounded-[12px] p-5">
+          <h2 className="font-archivo font-bold text-primary mb-3">Expertise</h2>
           <div className="flex flex-wrap gap-2">
             {EXPERTISE_OPTIONS.map((tag) => (
               <button
@@ -401,8 +400,8 @@ export default function SpeakerProfilePage() {
                 className={[
                   "px-3 py-1.5 text-xs rounded-full border transition-colors",
                   sp.expertise?.includes(tag)
-                    ? "bg-gold/15 border-gold text-gold-dark font-semibold"
-                    : "border-warm-gray text-charcoal hover:border-gold",
+                    ? "bg-secondary/10 border-secondary text-secondary font-semibold"
+                    : "border-line text-ink hover:border-secondary",
                 ].join(" ")}
               >
                 {tag}
@@ -412,8 +411,8 @@ export default function SpeakerProfilePage() {
         </div>
 
         {/* Languages */}
-        <div className="bg-white border border-warm-gray rounded-2xl p-5">
-          <h2 className="font-cormorant text-lg font-semibold text-ink mb-3">Languages</h2>
+        <div className="bg-white border border-line rounded-[12px] p-5">
+          <h2 className="font-archivo font-bold text-primary mb-3">Languages</h2>
           <div className="flex flex-wrap gap-2">
             {LANGUAGE_OPTIONS.map((lang) => (
               <button
@@ -422,8 +421,8 @@ export default function SpeakerProfilePage() {
                 className={[
                   "px-3 py-1.5 text-xs rounded-full border transition-colors",
                   sp.languages?.includes(lang)
-                    ? "bg-gold/15 border-gold text-gold-dark font-semibold"
-                    : "border-warm-gray text-charcoal hover:border-gold",
+                    ? "bg-secondary/10 border-secondary text-secondary font-semibold"
+                    : "border-line text-ink hover:border-secondary",
                 ].join(" ")}
               >
                 {lang}
@@ -433,8 +432,8 @@ export default function SpeakerProfilePage() {
         </div>
 
         {/* Availability */}
-        <div className="bg-white border border-warm-gray rounded-2xl p-5">
-          <h2 className="font-cormorant text-lg font-semibold text-ink mb-3">Availability</h2>
+        <div className="bg-white border border-line rounded-[12px] p-5">
+          <h2 className="font-archivo font-bold text-primary mb-3">Availability</h2>
           <div className="space-y-3">
             {[
               { label: "Available for bookings", key: "available" as const },
@@ -446,9 +445,9 @@ export default function SpeakerProfilePage() {
                   type="checkbox"
                   checked={sp[opt.key]}
                   onChange={(e) => setSp({ ...sp, [opt.key]: e.target.checked })}
-                  className="w-4 h-4 accent-gold"
+                  className="w-4 h-4 accent-[#FF5700]"
                 />
-                <span className="text-sm text-charcoal">{opt.label}</span>
+                <span className="text-sm text-ink">{opt.label}</span>
               </label>
             ))}
           </div>

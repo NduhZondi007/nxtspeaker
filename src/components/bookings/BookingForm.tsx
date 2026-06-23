@@ -119,21 +119,21 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
                 className={[
                   "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300",
                   i < step
-                    ? "bg-gold text-ink"
+                    ? "bg-primary text-white"
                     : i === step
-                    ? "bg-ink text-gold border-2 border-gold"
-                    : "bg-warm-gray text-mid-gray",
+                    ? "bg-accent text-white border-2 border-accent/50"
+                    : "bg-soft text-muted",
                 ].join(" ")}
               >
                 {i < step ? <Check size={14} /> : i + 1}
               </div>
-              <p className={`text-[10px] mt-1 font-medium ${i === step ? "text-gold" : "text-mid-gray"}`}>
+              <p className={`text-[10px] mt-1 font-medium ${i === step ? "text-accent" : "text-muted"}`}>
                 {s.label}
               </p>
             </div>
             {i < STEPS.length - 1 && (
               <div
-                className={`flex-1 h-px mx-2 mb-4 transition-all ${i < step ? "bg-gold" : "bg-warm-gray"}`}
+                className={`flex-1 h-px mx-2 mb-4 transition-all ${i < step ? "bg-primary" : "bg-line"}`}
               />
             )}
           </div>
@@ -143,7 +143,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
       {/* Step 1: Event Details */}
       {step === 0 && (
         <div className="space-y-4 animate-[slide-up_0.2s_ease-out]">
-          <h3 className="font-cormorant text-xl text-ink font-semibold">Event Details</h3>
+          <h3 className="font-archivo font-bold text-primary">Event Details</h3>
           <Input
             label="Event Name *"
             placeholder="e.g. Discovery Innovation Summit 2025"
@@ -182,13 +182,13 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-charcoal uppercase tracking-wide">
+              <label className="text-xs font-semibold text-ink uppercase tracking-wide">
                 Event Format *
               </label>
               <select
                 value={data.event_format}
                 onChange={(e) => update({ event_format: e.target.value as EventFormat })}
-                className="px-3 py-2.5 text-sm border border-warm-gray rounded-lg bg-white text-charcoal focus:outline-none focus:ring-2 focus:ring-gold/20 focus:border-gold"
+                className="px-3 py-2.5 text-sm border border-line rounded-[8px] bg-white text-ink focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
               >
                 <option value="in-person">In-Person</option>
                 <option value="virtual">Virtual</option>
@@ -217,7 +217,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
       {/* Step 2: Demographics */}
       {step === 1 && (
         <div className="space-y-4 animate-[slide-up_0.2s_ease-out]">
-          <h3 className="font-cormorant text-xl text-ink font-semibold">Audience & Organisation</h3>
+          <h3 className="font-archivo font-bold text-primary">Audience & Organisation</h3>
           <Textarea
             label="Audience Demographics *"
             placeholder="Describe who will be in the room: seniority level, industry, job functions, approximate number..."
@@ -245,8 +245,8 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
       {/* Step 3: Hospitality Rider */}
       {step === 2 && (
         <div className="space-y-4 animate-[slide-up_0.2s_ease-out]">
-          <h3 className="font-cormorant text-xl text-ink font-semibold">Hospitality Agreement</h3>
-          <p className="text-sm text-charcoal">
+          <h3 className="font-archivo font-bold text-primary">Hospitality Agreement</h3>
+          <p className="text-sm text-ink">
             Review {speakerName}&apos;s hospitality requirements carefully. You must agree to provide
             all listed items before submitting your booking.
           </p>
@@ -262,9 +262,9 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
               showAgreement
             />
           ) : (
-            <div className="border border-warm-gray rounded-xl p-6 text-center">
-              <p className="text-sm text-mid-gray">No hospitality rider has been configured by this speaker.</p>
-              <p className="text-xs text-mid-gray mt-1">You may proceed without an agreement.</p>
+            <div className="border border-line rounded-[8px] p-6 text-center">
+              <p className="text-sm text-muted">No hospitality rider has been configured by this speaker.</p>
+              <p className="text-xs text-muted mt-1">You may proceed without an agreement.</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -284,11 +284,11 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
       {/* Step 4: Confirm */}
       {step === 3 && (
         <div className="space-y-4 animate-[slide-up_0.2s_ease-out]">
-          <h3 className="font-cormorant text-xl text-ink font-semibold">Confirm Booking Request</h3>
+          <h3 className="font-archivo font-bold text-primary">Confirm Booking Request</h3>
 
-          <div className="border border-warm-gray rounded-xl overflow-hidden">
-            <div className="bg-ink px-4 py-3">
-              <p className="text-sm font-semibold text-gold">Booking Summary</p>
+          <div className="border border-line rounded-[8px] overflow-hidden">
+            <div className="bg-primary px-4 py-3">
+              <p className="text-sm font-semibold text-white">Booking Summary</p>
             </div>
             <div className="p-4 space-y-2.5">
               <Row label="Speaker" value={speakerName} />
@@ -299,7 +299,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
               <Row label="Duration" value={`${data.duration_minutes} minutes`} />
               <Row label="Organiser" value={data.event_organiser} />
               <Row label="Company" value={data.associated_company} />
-              <div className="pt-2 border-t border-warm-gray">
+              <div className="pt-2 border-t border-line">
                 <Row
                   label="Quoted Fee"
                   value={formatZAR(speaker.speaking_fee_zar)}
@@ -310,14 +310,14 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
             </div>
           </div>
 
-          <p className="text-xs text-mid-gray text-center">
+          <p className="text-xs text-muted text-center">
             By submitting, you send a booking request to {speakerName}. The speaker will review and respond within 48 hours.
           </p>
         </div>
       )}
 
       {/* Footer */}
-      <div className="flex gap-3 mt-8 pt-4 border-t border-warm-gray">
+      <div className="flex gap-3 mt-8 pt-4 border-t border-line">
         {step > 0 && (
           <Button variant="outline" onClick={() => setStep((s) => s - 1)} className="flex-1">
             Back
@@ -348,8 +348,8 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
 function Row({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className="text-mid-gray">{label}</span>
-      <span className={highlight ? "font-bold text-gold font-cormorant text-base" : "font-medium text-charcoal"}>
+      <span className="text-muted">{label}</span>
+      <span className={highlight ? "font-space-mono font-bold text-secondary" : "font-medium text-ink"}>
         {value}
       </span>
     </div>

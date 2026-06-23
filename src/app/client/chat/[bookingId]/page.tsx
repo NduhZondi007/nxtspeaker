@@ -66,7 +66,7 @@ export default async function ClientChatPage({ params }: Props) {
     <div className="flex flex-col h-[100dvh]">
       <TopBar title={`Chat — ${speakerName}`} subtitle={booking.event_name}>
         <Link href={`/client/bookings/${bookingId}`}>
-          <button className="flex items-center gap-1.5 text-sm text-mid-gray hover:text-charcoal transition-colors">
+          <button className="flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
             <ArrowLeft size={14} /> Back to booking
           </button>
         </Link>

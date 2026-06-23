@@ -30,18 +30,17 @@ export function HospitalityRiderView({
 }: HospitalityRiderViewProps) {
   return (
     <div className="space-y-4">
-      <div className="bg-gold/8 border border-gold/20 rounded-xl p-4 mb-4">
-        <h3 className="font-cormorant text-xl font-semibold text-ink mb-1">
+      <div className="bg-secondary/5 border border-secondary/20 rounded-[8px] p-4 mb-4">
+        <h3 className="font-archivo font-bold text-primary mb-1">
           Hospitality Rider
         </h3>
         {speakerName && (
-          <p className="text-sm text-mid-gray">
-            Requirements for <span className="font-semibold text-charcoal">{speakerName}</span>
+          <p className="text-sm text-muted">
+            Requirements for <span className="font-semibold text-ink">{speakerName}</span>
           </p>
         )}
       </div>
 
-      {/* Water & Beverages */}
       <Section icon={Droplets} title="Water & Beverages">
         <div className="space-y-1.5">
           <CheckItem label="Still water" checked={rider.water_still} />
@@ -53,7 +52,6 @@ export function HospitalityRiderView({
         </div>
       </Section>
 
-      {/* Catering */}
       <Section icon={Utensils} title="Catering & Dietary">
         <div className="space-y-1.5">
           <CheckItem label="Meal required" checked={rider.meal_required} />
@@ -62,10 +60,10 @@ export function HospitalityRiderView({
           )}
           {rider.dietary_restrictions && rider.dietary_restrictions.length > 0 && (
             <div>
-              <p className="text-xs text-mid-gray mb-1">Dietary requirements:</p>
+              <p className="text-xs text-muted mb-1">Dietary requirements:</p>
               <div className="flex flex-wrap gap-1.5">
                 {rider.dietary_restrictions.map((r) => (
-                  <span key={r} className="px-2 py-0.5 text-xs bg-gold/10 text-gold-dark border border-gold/20 rounded-full capitalize">
+                  <span key={r} className="px-2 py-0.5 text-xs bg-secondary/10 text-secondary border border-secondary/20 rounded-full capitalize">
                     {r}
                   </span>
                 ))}
@@ -75,7 +73,6 @@ export function HospitalityRiderView({
         </div>
       </Section>
 
-      {/* Green Room */}
       <Section icon={Home} title="Green Room">
         <div className="space-y-1.5">
           <CheckItem label="Green room required" checked={rider.green_room_required} />
@@ -83,7 +80,6 @@ export function HospitalityRiderView({
         </div>
       </Section>
 
-      {/* Technical */}
       <Section icon={Monitor} title="Technical Requirements">
         <div className="space-y-1.5">
           <CheckItem label="Presentation clicker" checked={rider.presentation_clicker} />
@@ -92,7 +88,6 @@ export function HospitalityRiderView({
         </div>
       </Section>
 
-      {/* Travel */}
       <Section icon={Plane} title="Travel & Accommodation">
         <div className="space-y-1.5">
           <CheckItem label="Flights required" checked={rider.flights_required} />
@@ -103,24 +98,22 @@ export function HospitalityRiderView({
         </div>
       </Section>
 
-      {/* Additional */}
       {rider.additional_requests && (
         <Section icon={Droplets} title="Additional Requests">
-          <p className="text-sm text-charcoal leading-relaxed">{rider.additional_requests}</p>
+          <p className="text-sm text-ink leading-relaxed">{rider.additional_requests}</p>
         </Section>
       )}
 
-      {/* Agreement checkbox */}
       {showAgreement && onAgree && (
-        <div className="mt-6 border border-gold/30 rounded-xl p-4 bg-gold/5">
+        <div className="mt-6 border border-secondary/30 rounded-[8px] p-4 bg-secondary/5">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
               checked={agreed}
               onChange={(e) => onAgree(e.target.checked)}
-              className="mt-0.5 w-4 h-4 accent-gold cursor-pointer"
+              className="mt-0.5 w-4 h-4 accent-[#FF5700] cursor-pointer"
             />
-            <span className="text-sm text-charcoal leading-relaxed">
+            <span className="text-sm text-ink leading-relaxed">
               I, <strong>{clientName ?? "the client"}</strong> representing{" "}
               <strong>{companyName ?? "the company"}</strong>, confirm that I will provide all
               items listed in this Hospitality Rider for{" "}
@@ -144,10 +137,10 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-warm-gray rounded-xl p-4">
+    <div className="border border-line rounded-[8px] p-4">
       <div className="flex items-center gap-2 mb-3">
-        <Icon size={14} className="text-gold" />
-        <h4 className="text-xs font-semibold text-charcoal uppercase tracking-wide">{title}</h4>
+        <Icon size={14} className="text-secondary" />
+        <h4 className="text-xs font-semibold text-ink uppercase tracking-wide">{title}</h4>
       </div>
       {children}
     </div>
@@ -157,10 +150,10 @@ function Section({
 function CheckItem({ label, checked }: { label: string; checked: boolean }) {
   return (
     <div className="flex items-center gap-2">
-      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${checked ? "bg-success/20 text-success" : "bg-warm-gray text-mid-gray"}`}>
+      <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${checked ? "bg-success/20 text-success" : "bg-soft text-muted"}`}>
         {checked ? "✓" : "–"}
       </span>
-      <span className={`text-sm ${checked ? "text-charcoal" : "text-mid-gray line-through"}`}>{label}</span>
+      <span className={`text-sm ${checked ? "text-ink" : "text-muted line-through"}`}>{label}</span>
     </div>
   );
 }
@@ -168,8 +161,8 @@ function CheckItem({ label, checked }: { label: string; checked: boolean }) {
 function Note({ label, value }: { label: string; value: string }) {
   return (
     <div className="mt-1">
-      <span className="text-[10px] text-mid-gray uppercase tracking-wide">{label}: </span>
-      <span className="text-xs text-charcoal">{value}</span>
+      <span className="text-[10px] text-muted uppercase tracking-wide">{label}: </span>
+      <span className="text-xs text-ink">{value}</span>
     </div>
   );
 }

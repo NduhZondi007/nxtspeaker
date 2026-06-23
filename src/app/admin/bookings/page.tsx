@@ -42,46 +42,46 @@ export default async function AdminBookingsPage({ searchParams }: Props) {
         {/* Status filter tabs */}
         <div className="flex gap-2 flex-wrap">
           <Link href="/admin/bookings">
-            <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${!status ? "bg-ink text-gold" : "bg-white border border-warm-gray text-charcoal hover:border-gold"}`}>
+            <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${!status ? "bg-primary text-white" : "bg-white border border-line text-ink hover:border-secondary"}`}>
               All
             </span>
           </Link>
           {ALL_STATUSES.map((s) => (
             <Link key={s} href={`/admin/bookings?status=${s}`}>
-              <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${status === s ? "bg-ink text-gold" : "bg-white border border-warm-gray text-charcoal hover:border-gold"}`}>
+              <span className={`inline-flex px-3 py-1.5 rounded-full text-xs font-semibold transition-colors cursor-pointer ${status === s ? "bg-primary text-white" : "bg-white border border-line text-ink hover:border-secondary"}`}>
                 {s.charAt(0) + s.slice(1).toLowerCase().replace("_", " ")}
               </span>
             </Link>
           ))}
         </div>
 
-        <div className="bg-white border border-warm-gray rounded-2xl overflow-hidden">
+        <div className="bg-white border border-line rounded-[12px] overflow-hidden">
           {bookings.length === 0 ? (
             <div className="text-center py-16">
-              <CalendarCheck size={32} className="text-warm-gray mx-auto mb-3" />
-              <p className="font-cormorant text-lg text-mid-gray">No bookings found</p>
+              <CalendarCheck size={32} className="text-line mx-auto mb-3" />
+              <p className="font-archivo text-muted">No bookings found</p>
             </div>
           ) : (
-            <div className="divide-y divide-warm-gray">
+            <div className="divide-y divide-line">
               {bookings.map((b: Booking) => (
                 <Link key={b.id} href={`/admin/bookings/${b.id}`}>
-                  <div className="flex items-center gap-4 px-5 py-4 hover:bg-cream/60 transition-colors">
+                  <div className="flex items-center gap-4 px-5 py-4 hover:bg-soft transition-colors">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-charcoal truncate">{b.event_name}</p>
-                      <p className="text-xs text-mid-gray mt-0.5">
-                        <span className="text-charcoal font-medium">{b.profiles?.full_name ?? "Client"}</span>
+                      <p className="text-sm font-semibold text-ink truncate">{b.event_name}</p>
+                      <p className="text-xs text-muted mt-0.5">
+                        <span className="text-ink font-medium">{b.profiles?.full_name ?? "Client"}</span>
                         {" → "}
-                        <span className="text-charcoal font-medium">{b.speaker_profiles?.profiles?.full_name ?? "Speaker"}</span>
+                        <span className="text-ink font-medium">{b.speaker_profiles?.profiles?.full_name ?? "Speaker"}</span>
                         {" · "}{new Date(b.event_date).toLocaleDateString("en-ZA")}
                       </p>
-                      <p className="text-[10px] text-mid-gray">Ref: {b.booking_number} · {b.event_format}</p>
+                      <p className="text-[10px] text-muted">Ref: {b.booking_number} · {b.event_format}</p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <div className="text-right">
                         <BookingStatusBadge status={b.status} />
-                        <p className="text-xs font-semibold text-gold mt-1">{formatZAR(b.quoted_fee_zar)}</p>
+                        <p className="font-space-mono font-bold text-secondary text-xs mt-1">{formatZAR(b.quoted_fee_zar)}</p>
                       </div>
-                      <ChevronRight size={14} className="text-mid-gray" />
+                      <ChevronRight size={14} className="text-muted" />
                     </div>
                   </div>
                 </Link>

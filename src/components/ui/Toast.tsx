@@ -24,9 +24,9 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 
 const typeConfig: Record<ToastType, { icon: typeof CheckCircle; color: string }> = {
   success: { icon: CheckCircle, color: "text-success" },
-  error: { icon: XCircle, color: "text-danger" },
-  warning: { icon: AlertCircle, color: "text-gold" },
-  info: { icon: Info, color: "text-[#8C7CA8]" },
+  error:   { icon: XCircle,     color: "text-danger" },
+  warning: { icon: AlertCircle, color: "text-accent" },
+  info:    { icon: Info,        color: "text-secondary" },
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -38,7 +38,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const toast = useCallback(
     (opts: Omit<Toast, "id">) => {
-      const id = Math.random().toString(36).slice(2);
+      const id = crypto.randomUUID();
       setToasts((prev) => [...prev, { ...opts, id }]);
       setTimeout(() => dismiss(id), 4000);
     },
@@ -46,9 +46,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 
   const success = useCallback((title: string, message?: string) => toast({ type: "success", title, message }), [toast]);
-  const error = useCallback((title: string, message?: string) => toast({ type: "error", title, message }), [toast]);
+  const error   = useCallback((title: string, message?: string) => toast({ type: "error",   title, message }), [toast]);
   const warning = useCallback((title: string, message?: string) => toast({ type: "warning", title, message }), [toast]);
-  const info = useCallback((title: string, message?: string) => toast({ type: "info", title, message }), [toast]);
+  const info    = useCallback((title: string, message?: string) => toast({ type: "info",    title, message }), [toast]);
 
   return (
     <ToastContext.Provider value={{ toast, success, error, warning, info }}>
@@ -59,16 +59,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           return (
             <div
               key={t.id}
-              className="pointer-events-auto bg-cream border border-gold/30 rounded-xl shadow-xl p-4 flex gap-3 animate-[toast-enter_0.3s_ease-out]"
+              className="pointer-events-auto bg-white border border-line rounded-[8px] shadow-xl p-4 flex gap-3 animate-[toast-enter_0.3s_ease-out]"
             >
               <Icon size={20} className={`shrink-0 mt-0.5 ${color}`} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-charcoal">{t.title}</p>
-                {t.message && <p className="text-xs text-mid-gray mt-0.5">{t.message}</p>}
+                <p className="text-sm font-semibold text-ink">{t.title}</p>
+                {t.message && <p className="text-xs text-muted mt-0.5">{t.message}</p>}
               </div>
               <button
                 onClick={() => dismiss(t.id)}
-                className="shrink-0 text-mid-gray hover:text-charcoal transition-colors"
+                className="shrink-0 text-muted hover:text-primary transition-colors"
               >
                 <X size={16} />
               </button>
