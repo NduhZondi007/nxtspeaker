@@ -24,10 +24,11 @@ export function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-white px-6 py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white border-t-4 border-primary px-6 py-12">
       <div className="w-full max-w-sm">
-        {/* Stacked logo */}
-        <div className="flex justify-center mb-10">
+
+        {/* Logo — rolls in on load */}
+        <div className="flex justify-center mb-10 animate-[logo-roll_0.7s_cubic-bezier(0.34,1.56,0.64,1)_forwards]">
           <Image
             src="/logoStack_navy.png"
             alt="NXT Speaker"
@@ -38,8 +39,10 @@ export function LoginForm() {
           />
         </div>
 
-        <h1 className="font-archivo text-3xl font-black text-primary uppercase tracking-tight text-center mb-1">
-          Welcome back
+        {/* Heading — navy → teal alternating */}
+        <h1 className="font-archivo font-black text-3xl uppercase tracking-tight text-center mb-1">
+          <span className="text-primary">Welcome </span>
+          <span className="text-secondary">back</span>
         </h1>
         <p className="text-sm text-muted text-center mb-8">Sign in to your account to continue</p>
 
@@ -58,15 +61,23 @@ export function LoginForm() {
             required
             autoComplete="email"
           />
-          <Input
-            name="password"
-            type="password"
-            label="Password"
-            placeholder="••••••••"
-            required
-            autoComplete="current-password"
-          />
-          <div className="flex justify-center pt-1">
+          <div className="space-y-1">
+            <Input
+              name="password"
+              type="password"
+              label="Password"
+              placeholder="••••••••"
+              required
+              autoComplete="current-password"
+            />
+            <div className="flex justify-end">
+              <span className="text-xs text-secondary font-space-mono cursor-not-allowed opacity-60">
+                Forgot password?
+              </span>
+            </div>
+          </div>
+
+          <div className="flex justify-center pt-2">
             <Button
               type="submit"
               variant="gold"

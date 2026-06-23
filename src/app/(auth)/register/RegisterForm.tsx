@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { Mic2, Users, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -29,141 +30,145 @@ export function RegisterForm() {
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Form side */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 sm:px-16 lg:px-20 py-12 bg-cream overflow-y-auto">
-        <div className="flex items-center gap-2.5 mb-10">
-          <div className="w-9 h-9 rounded-xl bg-ink flex items-center justify-center">
-            <Mic2 size={18} className="text-gold" />
-          </div>
-          <span className="font-cormorant text-2xl text-ink font-semibold">NxtSpeaker</span>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white border-t-4 border-primary px-6 py-12">
+      <div className="w-full max-w-sm">
+
+        {/* Logo — rolls in on load */}
+        <div className="flex justify-center mb-10 animate-[logo-roll_0.7s_cubic-bezier(0.34,1.56,0.64,1)_forwards]">
+          <Image
+            src="/logoStack_navy.png"
+            alt="NXT Speaker"
+            width={120}
+            height={120}
+            className="object-contain"
+            priority
+          />
         </div>
 
-        <div className="max-w-sm w-full">
-          <h1 className="font-cormorant text-4xl text-ink font-bold mb-2">Create your account</h1>
-          <p className="text-mid-gray mb-8">Join Africa&apos;s premier speaker platform</p>
+        {/* Heading — navy → teal → orange alternating */}
+        <h1 className="font-archivo font-black text-3xl uppercase tracking-tight text-center mb-1">
+          <span className="text-primary">Create </span>
+          <span className="text-secondary">your </span>
+          <span className="text-accent">account</span>
+        </h1>
+        <p className="text-sm text-muted text-center mb-8">Join South Africa&apos;s speaker platform</p>
 
-          {/* Role selection */}
-          {!role ? (
-            <div className="space-y-4">
-              <p className="text-xs font-semibold text-charcoal uppercase tracking-wide mb-4">
-                I am joining as...
-              </p>
-              <button
-                onClick={() => setRole("CLIENT")}
-                className="w-full p-4 border-2 border-warm-gray rounded-2xl text-left hover:border-gold hover:bg-gold/5 transition-all group"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-warm-gray group-hover:bg-gold/20 flex items-center justify-center transition-colors">
-                    <Users size={18} className="text-charcoal group-hover:text-gold" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-charcoal">Event Client</p>
-                    <p className="text-xs text-mid-gray mt-0.5">
-                      Browse and book speakers for my events and conferences
-                    </p>
-                  </div>
+        {/* Step 1 — Role selection */}
+        {!role ? (
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-primary uppercase tracking-widest mb-4 font-space-mono text-center">
+              I am joining as...
+            </p>
+
+            <button
+              onClick={() => setRole("CLIENT")}
+              className="w-full p-4 border-2 border-line rounded-[8px] text-left transition-all group hover:border-secondary hover:bg-soft"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-[4px] bg-soft group-hover:bg-secondary/15 flex items-center justify-center transition-colors shrink-0">
+                  <Users size={18} className="text-muted group-hover:text-secondary transition-colors" />
                 </div>
-              </button>
-              <button
-                onClick={() => setRole("SPEAKER")}
-                className="w-full p-4 border-2 border-warm-gray rounded-2xl text-left hover:border-gold hover:bg-gold/5 transition-all group"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-warm-gray group-hover:bg-gold/20 flex items-center justify-center transition-colors">
-                    <Mic2 size={18} className="text-charcoal group-hover:text-gold" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-charcoal">Professional Speaker</p>
-                    <p className="text-xs text-mid-gray mt-0.5">
-                      List my profile and receive booking requests from event organisers
-                    </p>
-                  </div>
+                <div>
+                  <p className="font-semibold text-primary">Event Client</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    I want to discover and book speakers for my events
+                  </p>
                 </div>
-              </button>
-
-              <p className="mt-6 text-sm text-mid-gray text-center">
-                Already have an account?{" "}
-                <Link href="/login" className="text-gold font-medium hover:text-gold-dark">
-                  Sign in
-                </Link>
-              </p>
-            </div>
-          ) : (
-            <div>
-              <button
-                onClick={() => setRole(null)}
-                className="flex items-center gap-1 text-xs text-mid-gray hover:text-charcoal mb-6 transition-colors"
-              >
-                ← Back to role selection
-              </button>
-
-              <div className="flex items-center gap-2 mb-6 p-3 rounded-xl bg-gold/10 border border-gold/20">
-                {role === "CLIENT" ? (
-                  <Users size={16} className="text-gold" />
-                ) : (
-                  <UserCheck size={16} className="text-gold" />
-                )}
-                <span className="text-sm font-medium text-gold-dark">
-                  Registering as {role === "CLIENT" ? "Event Client" : "Professional Speaker"}
-                </span>
               </div>
+            </button>
 
-              {error && (
-                <div className="mb-4 p-3 rounded-xl bg-danger/10 border border-danger/20 text-sm text-danger">
-                  {error}
+            <button
+              onClick={() => setRole("SPEAKER")}
+              className="w-full p-4 border-2 border-line rounded-[8px] text-left transition-all group hover:border-secondary hover:bg-soft"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-[4px] bg-soft group-hover:bg-secondary/15 flex items-center justify-center transition-colors shrink-0">
+                  <Mic2 size={18} className="text-muted group-hover:text-secondary transition-colors" />
                 </div>
+                <div>
+                  <p className="font-semibold text-primary">Professional Speaker</p>
+                  <p className="text-xs text-muted mt-0.5">
+                    I want to list my profile and receive booking requests
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            <p className="pt-4 text-sm text-muted text-center">
+              Already have an account?{" "}
+              <Link href="/login" className="text-accent font-semibold hover:text-accent-hover">
+                Sign in
+              </Link>
+            </p>
+          </div>
+        ) : (
+          /* Step 2 — Registration form */
+          <div>
+            <button
+              onClick={() => setRole(null)}
+              className="flex items-center gap-1 text-xs text-muted hover:text-primary mb-6 transition-colors"
+            >
+              ← Back
+            </button>
+
+            {/* Role indicator */}
+            <div className="flex items-center gap-2 mb-6 p-3 rounded-[4px] bg-secondary/10 border border-secondary/20">
+              {role === "CLIENT" ? (
+                <Users size={15} className="text-secondary shrink-0" />
+              ) : (
+                <UserCheck size={15} className="text-secondary shrink-0" />
+              )}
+              <span className="text-sm font-medium text-primary">
+                Joining as{" "}
+                <span className="text-secondary">
+                  {role === "CLIENT" ? "Event Client" : "Professional Speaker"}
+                </span>
+              </span>
+            </div>
+
+            {error && (
+              <div className="mb-4 p-3 rounded-[4px] bg-danger/10 border border-danger/20 text-sm text-danger">
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input name="full_name" label="Full Name" placeholder="Your full name" required />
+              <Input name="email" type="email" label="Email Address" placeholder="you@example.com" required />
+              <Input
+                name="password"
+                type="password"
+                label="Password"
+                placeholder="At least 8 characters"
+                required
+                minLength={8}
+              />
+              <Input name="phone" type="tel" label="Phone Number" placeholder="+27 82 000 0000" />
+              {role === "CLIENT" && (
+                <Input name="company" label="Company / Organisation" placeholder="Your company name" />
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <Input name="full_name" label="Full Name *" placeholder="Your full name" required />
-                <Input name="email" type="email" label="Email Address *" placeholder="you@example.com" required />
-                <Input
-                  name="password"
-                  type="password"
-                  label="Password *"
-                  placeholder="At least 8 characters"
-                  required
-                  minLength={8}
-                />
-                <Input name="phone" type="tel" label="Phone Number" placeholder="+27 82 000 0000" />
-                {role === "CLIENT" && (
-                  <Input name="company" label="Company / Organisation" placeholder="Your company name" />
-                )}
-                <Button type="submit" variant="gold" size="lg" className="w-full" loading={loading}>
+              <div className="flex justify-center pt-2">
+                <Button
+                  type="submit"
+                  variant="gold"
+                  size="lg"
+                  loading={loading}
+                  className="w-3/4"
+                >
                   Create Account
                 </Button>
-              </form>
+              </div>
+            </form>
 
-              <p className="mt-4 text-xs text-mid-gray text-center">
-                Already have an account?{" "}
-                <Link href="/login" className="text-gold font-medium hover:text-gold-dark">
-                  Sign in
-                </Link>
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Visual side */}
-      <div
-        className="hidden lg:flex w-1/2 flex-col justify-end p-16"
-        style={{
-          background: "linear-gradient(135deg, #0A0A0F 0%, #1a1208 50%, #2C2A26 100%)",
-        }}
-      >
-        <div
-          className="w-16 h-1 mb-8 rounded-full"
-          style={{ background: "linear-gradient(90deg, #C9A96E, transparent)" }}
-        />
-        <h2 className="font-cormorant text-5xl text-white font-bold leading-tight mb-4">
-          Speak. Lead.<br />
-          <span className="text-gold">Transform.</span>
-        </h2>
-        <p className="text-white/60 text-lg leading-relaxed max-w-sm">
-          The platform built for the African business stage — where world-class speakers meet world-class events.
-        </p>
+            <p className="mt-4 text-sm text-muted text-center">
+              Already have an account?{" "}
+              <Link href="/login" className="text-accent font-semibold hover:text-accent-hover">
+                Sign in
+              </Link>
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
