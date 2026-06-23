@@ -69,7 +69,7 @@ export function RegisterForm() {
                   <Users size={18} className="text-muted group-hover:text-secondary transition-colors" />
                 </div>
                 <div>
-                  <p className="font-semibold text-primary">Event Client</p>
+                  <p className="font-semibold text-primary">Event Coordinator</p>
                   <p className="text-xs text-muted mt-0.5">
                     I want to discover and book speakers for my events
                   </p>
