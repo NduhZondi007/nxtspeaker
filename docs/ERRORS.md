@@ -3,6 +3,24 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-06-23 · bug · Profile picture upload times out / silently fails
+
+**Type:** bug
+**Affected:** `src/app/actions/speakers.ts`, `src/app/speaker/profile/page.tsx`
+**Severity:** high
+
+**What happened:**
+Profile picture and portfolio photo uploads appeared to hang indefinitely and never saved. The UI showed a loading state but never resolved.
+
+**Root cause:**
+`File` objects passed to Next.js Server Actions are serialized through the HTTP request body. Next.js enforces a default `serverActions.bodySizeLimit` of 1 MB. Most device photos exceed this limit, causing the request to be silently dropped. Additionally, the `uploadAvatar` action was missing an error check on the `profiles` table update — the function could return a URL even when the DB save failed.
+
+**Fix:**
+Moved storage upload to the client side using the existing Supabase browser client (`supabase.storage.from(...).upload()`). The server actions (`saveAvatarUrl`, `saveSpeakerPhotoUrl`) now only receive a URL string and perform the DB update + cache revalidation. File validation (MIME type, size) moved to the client before the upload attempt. Rollback on DB failure preserved.
+
+**Prevention:**
+Never pass `File` or `Blob` objects to Next.js Server Actions — route them through the Supabase browser client directly. Only send lightweight payloads (URLs, IDs, strings) to server actions.
+
 ---
 
 ## 2026-06-22 · bug · Infinite recursion in profiles RLS policy breaks every authenticated user

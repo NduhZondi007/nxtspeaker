@@ -82,16 +82,15 @@ export async function updateRider(data: Partial<HospitalityRider>) {
 const MAX_PHOTO_BYTES = 3 * 1024 * 1024; // 3 MB
 const MAX_PHOTOS = 5;
 
-export async function uploadSpeakerPhoto(file: File) {
+export async function saveSpeakerPhotoUrl(url: string) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  if (!ALLOWED_MIME_TYPES.includes(file.type))
-    return { error: "Only JPG, PNG, WebP, or GIF images are allowed" };
-  if (file.size > MAX_PHOTO_BYTES)
-    return { error: "Photo must be under 3 MB" };
+  // Verify the URL belongs to this user's folder in our bucket
+  if (!url.includes(`/speaker-photos/${user.id}/`))
+    return { error: "Invalid photo URL" };
 
   const { data: sp } = await supabase
     .from("speaker_profiles")
@@ -103,29 +102,19 @@ export async function uploadSpeakerPhoto(file: File) {
   if ((sp.photo_urls ?? []).length >= MAX_PHOTOS)
     return { error: `Maximum ${MAX_PHOTOS} photos allowed` };
 
-  const ext = file.type.split("/")[1].replace("jpeg", "jpg");
-  const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("speaker-photos")
-    .upload(path, file, { upsert: false, contentType: file.type });
-  if (uploadError) return { error: uploadError.message };
-
-  const { data: urlData } = supabase.storage.from("speaker-photos").getPublicUrl(path);
+  // Strip query params before saving to DB
+  const cleanUrl = url.split("?")[0];
 
   const { error: dbError } = await supabase
     .from("speaker_profiles")
-    .update({ photo_urls: [...(sp.photo_urls ?? []), urlData.publicUrl] })
+    .update({ photo_urls: [...(sp.photo_urls ?? []), cleanUrl] })
     .eq("user_id", user.id);
 
-  if (dbError) {
-    await supabase.storage.from("speaker-photos").remove([path]);
-    return { error: dbError.message };
-  }
+  if (dbError) return { error: dbError.message };
 
   revalidatePath("/speaker/profile");
   revalidatePath("/client/discover");
-  return { url: urlData.publicUrl };
+  return { url: cleanUrl };
 }
 
 export async function removeSpeakerPhoto(url: string) {
@@ -162,40 +151,27 @@ export async function removeSpeakerPhoto(url: string) {
   return { success: true };
 }
 
-export async function uploadAvatar(file: File) {
+export async function saveAvatarUrl(url: string) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
-    return { error: "Only JPG, PNG, WebP, or GIF images are allowed" };
-  }
+  // Verify the URL belongs to this user's folder in our bucket
+  if (!url.includes(`/speaker-avatars/${user.id}/`))
+    return { error: "Invalid avatar URL" };
 
-  if (file.size > MAX_AVATAR_BYTES) {
-    return { error: "Image must be under 5 MB" };
-  }
+  // Strip query params (cache-bust suffix) before saving to DB
+  const cleanUrl = url.split("?")[0];
 
-  // Use MIME-derived extension — ignore file.name which can be spoofed
-  const ext = file.type.split("/")[1].replace("jpeg", "jpg");
-  const path = `${user.id}/avatar.${ext}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("speaker-avatars")
-    .upload(path, file, { upsert: true, contentType: file.type });
-
-  if (uploadError) return { error: uploadError.message };
-
-  const { data: urlData } = supabase.storage
-    .from("speaker-avatars")
-    .getPublicUrl(path);
-
-  await supabase
+  const { error: dbError } = await supabase
     .from("profiles")
-    .update({ avatar_url: urlData.publicUrl })
+    .update({ avatar_url: cleanUrl })
     .eq("id", user.id);
 
-  revalidatePath("/speaker/profile");
+  if (dbError) return { error: dbError.message };
 
-  return { url: `${urlData.publicUrl}?t=${Date.now()}` };
+  revalidatePath("/speaker/profile");
+  revalidatePath("/client/discover");
+  return { success: true };
 }

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/client";
-import { updateSpeakerProfile, uploadAvatar, uploadSpeakerPhoto, removeSpeakerPhoto } from "@/app/actions/speakers";
+import { updateSpeakerProfile, saveAvatarUrl, saveSpeakerPhotoUrl, removeSpeakerPhoto } from "@/app/actions/speakers";
 import { getEmbedUrl } from "@/lib/utils/media";
 import type { SpeakerProfile, Profile } from "@/lib/types/database";
 
@@ -75,12 +75,43 @@ export default function SpeakerProfilePage() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (fileRef.current) fileRef.current.value = "";
+
+    const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!ALLOWED.includes(file.type)) {
+      error("Upload failed", "Only JPG, PNG, WebP, or GIF images are allowed");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      error("Upload failed", "Image must be under 5 MB");
+      return;
+    }
+
     setUploading(true);
-    const result = await uploadAvatar(file);
-    if (result.error) error("Upload failed", result.error);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { error("Upload failed", "Not authenticated"); setUploading(false); return; }
+
+    const ext = file.type.split("/")[1].replace("jpeg", "jpg");
+    const path = `${user.id}/avatar.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("speaker-avatars")
+      .upload(path, file, { upsert: true, contentType: file.type });
+
+    if (uploadError) {
+      error("Upload failed", uploadError.message);
+      setUploading(false);
+      return;
+    }
+
+    const { data: urlData } = supabase.storage.from("speaker-avatars").getPublicUrl(path);
+    const urlWithBust = `${urlData.publicUrl}?t=${Date.now()}`;
+
+    const result = await saveAvatarUrl(urlWithBust);
+    if (result.error) error("Save failed", result.error);
     else {
       success("Profile photo updated!");
-      setProfile((prev) => prev ? { ...prev, avatar_url: result.url ?? null } : prev);
+      setProfile((prev) => prev ? { ...prev, avatar_url: urlWithBust } : prev);
     }
     setUploading(false);
   }
@@ -89,6 +120,11 @@ export default function SpeakerProfilePage() {
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0 || !sp) return;
     e.target.value = "";
+
+    const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { error("Upload failed", "Not authenticated"); return; }
+
     setUploadingPhoto(true);
 
     let currentUrls = [...(sp.photo_urls ?? [])];
@@ -100,8 +136,33 @@ export default function SpeakerProfilePage() {
         if (!firstError) firstError = `Maximum 5 photos reached — ${files.length - uploaded} file(s) skipped.`;
         break;
       }
-      const result = await uploadSpeakerPhoto(file);
+      if (!ALLOWED.includes(file.type)) {
+        if (!firstError) firstError = "Only JPG, PNG, WebP, or GIF images are allowed";
+        continue;
+      }
+      if (file.size > 3 * 1024 * 1024) {
+        if (!firstError) firstError = "Each photo must be under 3 MB";
+        continue;
+      }
+
+      const ext = file.type.split("/")[1].replace("jpeg", "jpg");
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("speaker-photos")
+        .upload(path, file, { upsert: false, contentType: file.type });
+
+      if (uploadError) {
+        if (!firstError) firstError = uploadError.message;
+        continue;
+      }
+
+      const { data: urlData } = supabase.storage.from("speaker-photos").getPublicUrl(path);
+      const result = await saveSpeakerPhotoUrl(urlData.publicUrl);
+
       if (result.error) {
+        // Roll back the storage upload if DB save failed
+        await supabase.storage.from("speaker-photos").remove([path]);
         if (!firstError) firstError = result.error;
       } else if (result.url) {
         currentUrls = [...currentUrls, result.url];
