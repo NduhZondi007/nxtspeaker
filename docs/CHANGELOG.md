@@ -8,6 +8,39 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Logout button broken** — `Sidebar.tsx` was calling `supabase.auth.signOut()` via the
+  browser Supabase client which only cleared localStorage; the SSR auth cookies
+  (`sb-*-auth-token`) remained valid so the middleware redirected users straight back to
+  the dashboard after every logout attempt. Fixed by replacing the browser-side `signOut()`
+  call with the existing `logoutUser()` server action, which uses `createServerClient` to
+  clear the cookies server-side before redirecting to `/login`.
+- **Speakers not loading on discover page** — `useEffect` dep array was `[filters, supabase]`
+  without `user`; the 300ms query fired before `AuthProvider` finished reading the session,
+  `auth.uid()` was null in RLS context, and the `"Anyone authenticated can view active
+  speakers"` policy blocked all rows. Because `user` was absent from the deps, the effect
+  never re-ran once the session loaded. Fixed by reading `user` and `authLoading` from
+  `useAuth()`, guarding the fetch behind confirmed auth, adding both to the dep array, and
+  surfacing Supabase errors to `console.error` instead of swallowing them silently.
+
+### Refactored
+- **Complete design token migration** (`f12e821`) — eliminated all legacy luxury tokens
+  (`font-cormorant`, `text-gold`, `bg-gold`, `bg-cream`, `border-warm-gray`, `bg-warm-gray`,
+  `text-mid-gray`, `text-charcoal`, `rounded-2xl`, `rounded-xl`) across 37 files; replaced
+  with brand design system tokens (`font-archivo`, `font-space-mono`, `text-secondary`,
+  `bg-soft`, `border-line`, `text-muted`, `text-ink`, `rounded-[12px]`, `rounded-[8px]`).
+  Affected: all admin pages (dashboard, users, bookings, speakers + detail pages), all
+  speaker/client pages (profile, rider, earnings, bookings, chat), all chat components,
+  BookingForm, HospitalityRiderView, AddSpeakerModal, Toast, and all 8 loading skeletons.
+- **Duplicate auth eliminated** — `src/lib/hooks/useUser.ts` is now a thin re-export of
+  `useAuth()`; components using `useUser()` no longer trigger a second `auth.getUser()` +
+  profiles DB query independent of `AuthProvider`. `speaker/profile/page.tsx` also updated
+  to read `user` from `useAuth()` instead of calling `supabase.auth.getUser()` in `useEffect`.
+- **Toast ID uniqueness** — replaced `Math.random().toString(36)` with `crypto.randomUUID()`
+  to guarantee collision-free toast IDs.
+- **BrandMentionCard** — updated from old gold/dark theme to brand navy (#031E57) /
+  teal (#629DAB) / lavender (#ECD4F5) palette matching the design system.
+
 ### Performance
 - **Eliminated blank-screen loading delays** across all server-rendered pages:
   - Added `loading.tsx` pulse-skeleton files at 8 route segments (`client/dashboard`,

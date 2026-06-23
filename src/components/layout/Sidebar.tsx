@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Search,
@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   ArrowLeft,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { logoutUser } from "@/app/actions/auth";
 import { useSidebar } from "@/components/layout/SidebarContext";
 import type { UserRole } from "@/lib/types/database";
 
@@ -62,7 +62,6 @@ interface SidebarProps {
 
 export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { isOpen, close } = useSidebar();
 
   const navItems =
@@ -76,9 +75,7 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
       : "/client/dashboard";
 
   async function handleLogout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
+    await logoutUser();
   }
 
   function handleNavClick() {

@@ -34,7 +34,7 @@ export default function DiscoverPage() {
   const [bookingSpeaker, setBookingSpeaker] = useState<SpeakerProfile | null>(null);
   const [bookingRider, setBookingRider] = useState<HospitalityRider | null>(null);
   const [reviewCache, setReviewCache] = useState<Map<string, Review[]>>(new Map());
-  const { profile } = useAuth();
+  const { profile, user, loading: authLoading } = useAuth();
   const { success, error } = useToast();
   const supabase = useMemo(() => createClient(), []);
 
@@ -45,6 +45,8 @@ export default function DiscoverPage() {
 
     const timer = setTimeout(async () => {
       if (stale) return;
+      if (authLoading) return;
+      if (!user) { setLoading(false); return; }
       setLoading(true);
 
       let query = supabase
@@ -66,7 +68,12 @@ export default function DiscoverPage() {
         default:            query = query.order("avg_rating",        { ascending: false });
       }
 
-      const { data } = await query;
+      const { data, error: speakerFetchError } = await query;
+      if (speakerFetchError) {
+        console.error("[discover] speaker_profiles fetch failed:", speakerFetchError.message, speakerFetchError.code);
+        if (!stale) setLoading(false);
+        return;
+      }
       if (stale) return;
 
       let results = (data ?? []) as SpeakerProfile[];
@@ -89,7 +96,7 @@ export default function DiscoverPage() {
       stale = true;
       clearTimeout(timer);
     };
-  }, [filters, supabase]);
+  }, [filters, supabase, user, authLoading]);
 
   async function handleSelectSpeaker(speaker: SpeakerProfile) {
     setSelectedSpeaker(speaker);
