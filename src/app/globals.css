@@ -1,27 +1,37 @@
 @import "tailwindcss";
 
 @theme {
-  /* Design Tokens */
-  --color-ink: #0A0A0F;
-  --color-gold: #C9A96E;
-  --color-gold-light: #E8D5B0;
-  --color-gold-dark: #8B6A35;
-  --color-cream: #FAF8F3;
-  --color-warm-gray: #E8E4DC;
-  --color-mid-gray: #9A9590;
-  --color-charcoal: #2C2A26;
+  /* Core palette */
+  --color-primary:   #031E57;
+  --color-secondary: #629DAB;
+  --color-tertiary:  #FFFFFF;
+  --color-accent:    #FF5700;
+  --color-support:   #ECD4F5;
+
+  /* Neutrals */
+  --color-ink:       #46506A;
+  --color-soft:      #FAFAFB;
+  --color-line:      #ECECF0;
+  --color-muted:     #9AA1B0;
+
+  /* Accent states */
+  --color-accent-hover:     #E64E00;
+  --color-accent-disabled:  #FFD9C7;
+
+  /* Semantic */
   --color-success: #6B9E78;
-  --color-danger: #C47A6A;
+  --color-danger:  #C47A6A;
 
   /* Typography */
-  --font-family-cormorant: var(--font-cormorant), Georgia, serif;
-  --font-family-dm-sans: var(--font-dm-sans), system-ui, sans-serif;
+  --font-family-archivo:    var(--font-archivo), system-ui, sans-serif;
+  --font-family-hanken:     var(--font-hanken), system-ui, sans-serif;
+  --font-family-space-mono: var(--font-space-mono), monospace;
 
   /* Animations */
-  --animate-pulse-dot: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  --animate-slide-up: slide-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  --animate-modal-enter: modal-enter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-  --animate-toast-enter: toast-enter 0.3s ease-out;
+  --animate-pulse-dot:    pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-slide-up:     slide-up 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-modal-enter:  modal-enter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --animate-toast-enter:  toast-enter 0.3s ease-out;
 }
 
 @keyframes pulse-dot {
@@ -45,8 +55,8 @@
 }
 
 :root {
-  --background: #FAF8F3;
-  --foreground: #2C2A26;
+  --background: #FFFFFF;
+  --foreground: #031E57;
 }
 
 * {
@@ -60,13 +70,13 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-dm-sans, system-ui, sans-serif);
+  font-family: var(--font-hanken, system-ui, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-cormorant, Georgia, serif);
+  font-family: var(--font-archivo, system-ui, sans-serif);
 }
 
 /* Scrollbar styling */
@@ -75,9 +85,9 @@ h1, h2, h3, h4, h5, h6 {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #E8E4DC;
+  background: #ECECF0;
 }
 ::-webkit-scrollbar-thumb {
-  background: #C9A96E;
+  background: #629DAB;
   border-radius: 3px;
 }

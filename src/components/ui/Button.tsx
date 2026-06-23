@@ -1,6 +1,6 @@
 import { type ButtonHTMLAttributes, forwardRef } from "react";
 
-type ButtonVariant = "gold" | "primary" | "outline" | "ghost" | "danger";
+type ButtonVariant = "gold" | "primary" | "outline" | "ghost" | "danger" | "soft";
 type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -10,17 +10,18 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
-  gold: "bg-gold text-ink font-semibold hover:bg-gold-light border border-gold shadow-sm",
-  primary: "bg-ink text-cream font-semibold hover:bg-charcoal border border-ink",
-  outline: "bg-transparent text-charcoal font-medium hover:bg-warm-gray border border-warm-gray",
-  ghost: "bg-transparent text-mid-gray font-medium hover:text-charcoal hover:bg-warm-gray border border-transparent",
+  gold: "bg-accent text-white font-semibold hover:bg-accent-hover border border-accent shadow-sm disabled:bg-accent-disabled disabled:text-[#B53E00] disabled:border-accent-disabled",
+  primary: "bg-primary text-white font-semibold hover:bg-[#021540] border border-primary",
+  outline: "bg-white text-primary font-medium hover:bg-soft border border-secondary",
+  ghost: "bg-transparent text-secondary font-medium hover:text-primary hover:bg-soft border border-transparent",
+  soft: "bg-support text-primary font-medium hover:bg-[#E0C4EF] border border-transparent",
   danger: "bg-danger text-white font-semibold hover:opacity-90 border border-danger",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: "px-3 py-1.5 text-xs rounded-md",
-  md: "px-4 py-2 text-sm rounded-lg",
-  lg: "px-6 py-3 text-base rounded-xl",
+  sm: "px-3 py-1.5 text-xs rounded-[3px]",
+  md: "px-[22px] py-3 text-sm rounded-[3px]",
+  lg: "px-8 py-3.5 text-base rounded-[3px]",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(

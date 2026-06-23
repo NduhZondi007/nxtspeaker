@@ -11,7 +11,6 @@ import {
   Utensils,
   DollarSign,
   LogOut,
-  Mic2,
   X,
   Users2,
   ShieldCheck,
@@ -45,7 +44,7 @@ const adminNav: NavItem[] = [
   { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { label: "Users", href: "/admin/users", icon: Users2 },
   { label: "Bookings", href: "/admin/bookings", icon: CalendarCheck },
-  { label: "Speakers", href: "/admin/speakers", icon: Mic2 },
+  { label: "Speakers", href: "/admin/speakers", icon: Search },
 ];
 
 const portalLabels: Record<UserRole, string> = {
@@ -93,23 +92,19 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
         "md:sticky md:top-0 md:h-screen md:translate-x-0 md:z-auto",
         isOpen ? "translate-x-0" : "-translate-x-full",
       ].join(" ")}
-      style={{
-        background: "linear-gradient(180deg, #0A0A0F 0%, #1a1208 50%, #0A0A0F 100%)",
-      }}
+      style={{ background: "#031E57" }}
     >
       {/* Logo */}
       <div className="px-6 py-6 border-b border-white/10 flex items-center justify-between">
-        <Link
-          href={logoHref}
-          className="flex items-center gap-2.5"
-          onClick={handleNavClick}
-        >
-          <div className="w-8 h-8 rounded-lg bg-gold flex items-center justify-center">
-            <Mic2 size={16} className="text-ink" />
-          </div>
-          <span className="font-cormorant text-xl text-gold font-semibold tracking-wide">
-            NxtSpeaker
-          </span>
+        <Link href={logoHref} onClick={handleNavClick}>
+          <Image
+            src="/logoHoriz_white.png"
+            alt="NXT Speaker"
+            width={140}
+            height={32}
+            className="object-contain"
+            priority
+          />
         </Link>
         <button
           onClick={close}
@@ -122,19 +117,19 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
 
       {/* Role label */}
       <div className="px-6 pt-4 pb-2 flex items-center gap-2">
-        {role === "ADMIN" && <ShieldCheck size={10} className="text-gold/60" />}
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-gold/60">
+        {role === "ADMIN" && <ShieldCheck size={10} className="text-secondary/70" />}
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-secondary/70 font-space-mono">
           {portalLabels[role]}
         </span>
       </div>
 
-      {/* Back to Admin Portal (shown when admin is browsing client/speaker portal) */}
+      {/* Back to Admin Portal */}
       {isAdmin && role !== "ADMIN" && (
         <div className="px-3 pb-1">
           <Link
             href="/admin/dashboard"
             onClick={handleNavClick}
-            className="flex items-center gap-2 px-3 py-2 text-xs text-gold/80 hover:text-gold bg-gold/8 border border-gold/20 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-xs text-secondary/80 hover:text-secondary bg-secondary/10 border border-secondary/20 rounded-[4px] transition-colors"
           >
             <ArrowLeft size={12} />
             <span className="font-medium italic">Back to Admin Portal</span>
@@ -153,9 +148,9 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
               href={item.href}
               onClick={handleNavClick}
               className={[
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150",
+                "flex items-center gap-3 px-3 py-2.5 rounded-[4px] text-sm transition-all duration-150",
                 active
-                  ? "bg-gold/15 text-gold border-l-2 border-gold pl-[10px]"
+                  ? "bg-white/10 text-white border-l-2 border-accent pl-[10px]"
                   : "text-white/60 hover:text-white hover:bg-white/8 border-l-2 border-transparent pl-[10px]",
               ].join(" ")}
             >
@@ -175,11 +170,11 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
               alt={userName}
               width={32}
               height={32}
-              className="rounded-full object-cover ring-1 ring-gold/40"
+              className="rounded-full object-cover ring-1 ring-secondary/40"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-gold/20 flex items-center justify-center">
-              <span className="text-xs font-bold text-gold">
+            <div className="w-8 h-8 rounded-full bg-secondary/20 flex items-center justify-center">
+              <span className="text-xs font-bold text-secondary">
                 {userName.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -191,7 +186,7 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/50 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
+          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/50 hover:text-danger hover:bg-danger/10 rounded-[4px] transition-colors"
         >
           <LogOut size={14} />
           Sign Out

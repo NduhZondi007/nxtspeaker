@@ -14,7 +14,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="text-xs font-semibold text-charcoal uppercase tracking-wide"
+            className="text-xs font-semibold text-primary uppercase tracking-wide font-space-mono"
           >
             {label}
           </label>
@@ -23,17 +23,17 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           className={[
-            "w-full px-3 py-2.5 text-sm text-charcoal bg-white border rounded-lg",
-            "placeholder:text-mid-gray focus:outline-none focus:ring-2 transition-all",
+            "w-full px-3 py-2.5 text-sm text-primary bg-white border rounded-[4px]",
+            "placeholder:text-muted focus:outline-none focus:ring-2 transition-all",
             error
               ? "border-danger focus:ring-danger/20"
-              : "border-warm-gray focus:border-gold focus:ring-gold/20",
+              : "border-secondary focus:border-accent focus:ring-accent/20",
             className,
           ].join(" ")}
           {...props}
         />
         {error && <p className="text-xs text-danger">{error}</p>}
-        {hint && !error && <p className="text-xs text-mid-gray">{hint}</p>}
+        {hint && !error && <p className="text-xs text-muted">{hint}</p>}
       </div>
     );
   }
@@ -55,7 +55,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="text-xs font-semibold text-charcoal uppercase tracking-wide"
+            className="text-xs font-semibold text-primary uppercase tracking-wide font-space-mono"
           >
             {label}
           </label>
@@ -64,17 +64,17 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={inputId}
           className={[
-            "w-full px-3 py-2.5 text-sm text-charcoal bg-white border rounded-lg resize-y min-h-[80px]",
-            "placeholder:text-mid-gray focus:outline-none focus:ring-2 transition-all",
+            "w-full px-3 py-2.5 text-sm text-primary bg-white border rounded-[4px] resize-y min-h-[80px]",
+            "placeholder:text-muted focus:outline-none focus:ring-2 transition-all",
             error
               ? "border-danger focus:ring-danger/20"
-              : "border-warm-gray focus:border-gold focus:ring-gold/20",
+              : "border-secondary focus:border-accent focus:ring-accent/20",
             className,
           ].join(" ")}
           {...props}
         />
         {error && <p className="text-xs text-danger">{error}</p>}
-        {hint && !error && <p className="text-xs text-mid-gray">{hint}</p>}
+        {hint && !error && <p className="text-xs text-muted">{hint}</p>}
       </div>
     );
   }
