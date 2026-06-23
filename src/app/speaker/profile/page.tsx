@@ -266,7 +266,10 @@ export default function SpeakerProfilePage() {
               <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} loading={uploading}>
                 <Camera size={14} /> {uploading ? "Uploading..." : "Upload Photo"}
               </Button>
-              <p className="text-xs text-mid-gray mt-1">JPG, PNG up to 5MB</p>
+              <p className="text-xs text-mid-gray mt-1.5 leading-relaxed">
+                Square crop works best — min <span className="font-medium text-ink">400 × 400 px</span>.
+                <br />JPG, PNG, WebP · max 5 MB
+              </p>
             </div>
           </div>
         </div>
@@ -333,8 +336,11 @@ export default function SpeakerProfilePage() {
             <h2 className="font-cormorant text-lg font-semibold text-ink">Portfolio Photos</h2>
             <span className="text-xs text-mid-gray">{(sp.photo_urls ?? []).length} / 5</span>
           </div>
-          <p className="text-xs text-mid-gray">
-            On-stage shots, event photos, or headshots. JPG, PNG up to 3 MB each.
+          <p className="text-xs text-mid-gray leading-relaxed">
+            On-stage shots, event photos, or headshots. Landscape{" "}
+            <span className="font-medium text-ink">4:3</span> recommended — min{" "}
+            <span className="font-medium text-ink">800 × 600 px</span>.
+            <br />JPG, PNG, WebP · max 3 MB each · up to 5 photos
           </p>
 
           <input
