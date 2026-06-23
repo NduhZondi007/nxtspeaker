@@ -12,9 +12,27 @@ Speaker booking platform for South Africa. Clients discover and book speakers; s
 - `src/lib/` — Supabase clients, hooks, types, utils
 - `supabase/migrations/` — All DB schema changes live here
 - `middleware.ts` — Edge auth guard
+- `docs/DESIGN.md` — **Design system spec — read before any UI work** (colours, fonts, components, logos)
 - `docs/ERRORS.md` — Error log (append every non-trivial error encountered)
 - `docs/ERRORLOG.md` — Detailed incident log for major errors (full root cause analysis, fix chain, runbook)
 - `docs/CHANGELOG.md` — All changes recorded here
+
+---
+
+## Design System — Read Before Any UI Work
+
+**`docs/DESIGN.md` is the single source of truth for all visual decisions.**
+
+You MUST read `docs/DESIGN.md` before:
+- Adding or modifying any component, page, or layout
+- Implementing any new feature that has a visual surface
+- Choosing colours, fonts, spacing, or border radii
+- Placing, sizing, or swapping any logo asset
+- Deciding whether to use orange (answer: only if it is a clickable action)
+
+If a proposed change contradicts `docs/DESIGN.md`, raise it explicitly and update the design doc before writing code. Never silently deviate from the spec.
+
+**Logo assets:** `styling_assets/assets/` — copy the required variant to `public/` before use. See `docs/DESIGN.md` for which variant to use on which background.
 
 ---
 
