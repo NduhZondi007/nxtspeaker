@@ -31,7 +31,7 @@ export function LoginForm() {
         <div className="flex justify-center mb-10 animate-[logo-roll_0.7s_cubic-bezier(0.34,1.56,0.64,1)_forwards]">
           <Image
             src="/logoStack_navy.png"
-            alt="NXT Speaker"
+            alt="NXTSpeaker"
             width={120}
             height={120}
             className="object-contain"
@@ -39,10 +39,11 @@ export function LoginForm() {
           />
         </div>
 
-        {/* Brand eyebrow */}
+        {/* Brand eyebrow 
         <p className="font-space-mono text-xs font-bold text-primary uppercase tracking-[0.25em] text-center mb-3">
-          NXT Speaker
+          NXTSpeaker
         </p>
+        */}
 
         {/* Heading — navy → teal alternating */}
         <h1 className="font-archivo font-black text-3xl uppercase tracking-tight text-center mb-1">

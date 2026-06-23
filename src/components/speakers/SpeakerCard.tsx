@@ -45,14 +45,6 @@ export function SpeakerCard({ speaker, onClick }: SpeakerCardProps) {
           </div>
         )}
 
-        {/* Availability dot */}
-        {speaker.available && (
-          <span className="absolute top-3 right-3 flex h-3.5 w-3.5">
-            <span className="animate-[pulse-dot_2s_cubic-bezier(0.4,0,0.6,1)_infinite] absolute inline-flex h-full w-full rounded-full bg-success opacity-60" />
-            <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-success border-2 border-white" />
-          </span>
-        )}
-
         {/* Location overlay */}
         {speaker.location && (
           <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 bg-black/40 rounded-full backdrop-blur-sm">

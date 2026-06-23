@@ -57,17 +57,17 @@ export function Modal({ open, onClose, title, children, maxWidth = "lg" }: Modal
       {/* Panel */}
       <div
         className={[
-          "relative w-full bg-cream rounded-2xl shadow-2xl overflow-hidden",
+          "relative w-full bg-white rounded-[12px] shadow-2xl overflow-hidden",
           "animate-[modal-enter_0.35s_cubic-bezier(0.34,1.56,0.64,1)]",
           maxWidthMap[maxWidth],
         ].join(" ")}
       >
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-warm-gray">
-            <h2 className="font-cormorant text-xl text-ink font-semibold">{title}</h2>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-line">
+            <h2 className="font-archivo font-black text-primary uppercase tracking-tight">{title}</h2>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-mid-gray hover:text-charcoal hover:bg-warm-gray transition-colors"
+              className="p-1.5 rounded-[4px] text-muted hover:text-primary hover:bg-soft transition-colors"
             >
               <X size={18} />
             </button>
@@ -76,7 +76,7 @@ export function Modal({ open, onClose, title, children, maxWidth = "lg" }: Modal
         {!title && (
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 z-10 p-1.5 rounded-lg text-mid-gray hover:text-charcoal hover:bg-warm-gray transition-colors"
+            className="absolute top-4 right-4 z-10 p-1.5 rounded-[4px] text-muted hover:text-primary hover:bg-soft transition-colors"
           >
             <X size={18} />
           </button>
