@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useTransition } from "react";
 import {
   LayoutDashboard,
   Search,
@@ -11,6 +12,7 @@ import {
   Utensils,
   DollarSign,
   LogOut,
+  Loader2,
   X,
   Users2,
   ShieldCheck,
@@ -63,6 +65,7 @@ interface SidebarProps {
 export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
+  const [isPending, startTransition] = useTransition();
 
   const navItems =
     role === "ADMIN" ? adminNav : role === "SPEAKER" ? speakerNav : clientNav;
@@ -74,8 +77,10 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
       ? "/speaker/dashboard"
       : "/client/dashboard";
 
-  async function handleLogout() {
-    await logoutUser();
+  function handleLogout() {
+    startTransition(async () => {
+      await logoutUser();
+    });
   }
 
   function handleNavClick() {
@@ -183,10 +188,15 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/50 hover:text-danger hover:bg-danger/10 rounded-[4px] transition-colors"
+          disabled={isPending}
+          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/50 hover:text-danger hover:bg-danger/10 rounded-[4px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          <LogOut size={14} />
-          Sign Out
+          {isPending ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <LogOut size={14} />
+          )}
+          {isPending ? "Signing out…" : "Sign Out"}
         </button>
       </div>
     </aside>
