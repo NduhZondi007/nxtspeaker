@@ -39,6 +39,11 @@ export function LoginForm() {
           />
         </div>
 
+        {/* Brand eyebrow */}
+        <p className="font-space-mono text-xs font-bold text-primary uppercase tracking-[0.25em] text-center mb-3">
+          NXT Speaker
+        </p>
+
         {/* Heading — navy → teal alternating */}
         <h1 className="font-archivo font-black text-3xl uppercase tracking-tight text-center mb-1">
           <span className="text-primary">Welcome </span>
