@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "NxtSpeaker — Africa's Premier Speaker Platform";
+export const alt = "NXT Speaker — Book Speakers Directly";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -9,154 +9,29 @@ export default async function Image() {
     (
       <div
         style={{
-          background: "#0A0A0F",
+          background: "#031E57",
           width: "100%",
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "Georgia, serif",
           position: "relative",
           overflow: "hidden",
+          fontFamily: "system-ui, sans-serif",
         }}
       >
-        {/* Gold top gradient bar */}
+        {/* Orange top bar */}
         <div
           style={{
             position: "absolute",
             top: 0,
             left: 0,
             width: "100%",
-            height: "6px",
-            background: "linear-gradient(90deg, #C9A96E 0%, #8B6A35 60%, transparent 100%)",
+            height: "8px",
+            background: "#FF5700",
           }}
         />
 
-        {/* Subtle background glow */}
-        <div
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            width: "600px",
-            height: "600px",
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(201,169,110,0.07) 0%, transparent 70%)",
-            transform: "translate(-50%, -50%)",
-          }}
-        />
-
-        {/* Microphone icon — inline SVG shapes */}
-        <div
-          style={{
-            width: 88,
-            height: 88,
-            borderRadius: 20,
-            background: "#1a1208",
-            border: "1.5px solid #C9A96E33",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 32,
-          }}
-        >
-          <svg
-            width="44"
-            height="44"
-            viewBox="0 0 32 32"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <rect x="12" y="4" width="8" height="14" rx="4" fill="#C9A96E" />
-            <path
-              d="M9 15a7 7 0 0 0 14 0"
-              stroke="#C9A96E"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-            <line x1="16" y1="22" x2="16" y2="26" stroke="#C9A96E" strokeWidth="1.8" strokeLinecap="round" />
-            <line x1="12" y1="26" x2="20" y2="26" stroke="#C9A96E" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-        </div>
-
-        {/* Brand name */}
-        <div
-          style={{
-            fontSize: 80,
-            fontWeight: 700,
-            color: "#FFFFFF",
-            letterSpacing: "-2px",
-            lineHeight: 1,
-          }}
-        >
-          NxtSpeaker
-        </div>
-
-        {/* Gold divider */}
-        <div
-          style={{
-            width: 56,
-            height: 3,
-            background: "linear-gradient(90deg, transparent, #C9A96E, transparent)",
-            borderRadius: 2,
-            marginTop: 20,
-            marginBottom: 20,
-          }}
-        />
-
-        {/* Tagline */}
-        <div
-          style={{
-            fontSize: 26,
-            color: "#C9A96E",
-            fontWeight: 400,
-            letterSpacing: "2px",
-            textTransform: "uppercase",
-          }}
-        >
-          Africa&apos;s Premier Speaker Platform
-        </div>
-
-        {/* Stats row */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 48,
-            display: "flex",
-            gap: 64,
-          }}
-        >
-          {[
-            ["500+", "Speakers"],
-            ["R2.4B", "Fees Facilitated"],
-            ["48h", "Response Time"],
-          ].map(([value, label]) => (
-            <div
-              key={label}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-              }}
-            >
-              <span style={{ fontSize: 26, fontWeight: 700, color: "#C9A96E" }}>{value}</span>
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "#9A9590",
-                  marginTop: 4,
-                  textTransform: "uppercase",
-                  letterSpacing: "2px",
-                }}
-              >
-                {label}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom gold bar */}
+        {/* Teal bottom bar */}
         <div
           style={{
             position: "absolute",
@@ -164,9 +39,142 @@ export default async function Image() {
             left: 0,
             width: "100%",
             height: "3px",
-            background: "linear-gradient(90deg, transparent, #8B6A35 40%, #C9A96E 100%)",
+            background: "#629DAB",
           }}
         />
+
+        {/* Angular mark watermark — right side, 12% opacity */}
+        <div
+          style={{
+            position: "absolute",
+            right: -40,
+            top: "50%",
+            transform: "translateY(-50%) rotate(15deg)",
+            opacity: 0.12,
+            display: "flex",
+          }}
+        >
+          <svg
+            width="480"
+            height="480"
+            viewBox="0 0 32 32"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <polygon points="4,24 8,24 20,8 16,8" fill="#FFFFFF" />
+            <polygon points="14,24 17,24 28,8 25,8" fill="#FFFFFF" />
+            <polygon points="4,18 8,18 8,15 4,15" fill="#FFFFFF" />
+            <polygon points="24,17 28,17 28,14 24,14" fill="#FFFFFF" />
+          </svg>
+        </div>
+
+        {/* Main content */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            flex: 1,
+            paddingLeft: 80,
+            paddingRight: 80,
+            paddingTop: 48,
+            paddingBottom: 48,
+          }}
+        >
+          {/* Eyebrow */}
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: "#629DAB",
+              letterSpacing: "4px",
+              textTransform: "uppercase",
+              marginBottom: 28,
+            }}
+          >
+            SOUTH AFRICA&apos;S SPEAKER PLATFORM
+          </div>
+
+          {/* Brand name */}
+          <div
+            style={{
+              fontSize: 104,
+              fontWeight: 900,
+              color: "#FFFFFF",
+              letterSpacing: "-3px",
+              lineHeight: 0.9,
+              textTransform: "uppercase",
+              marginBottom: 28,
+            }}
+          >
+            NXT SPEAKER
+          </div>
+
+          {/* Tagline */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              fontSize: 26,
+              fontWeight: 400,
+              color: "rgba(255,255,255,0.75)",
+              lineHeight: 1.4,
+              maxWidth: 560,
+              marginBottom: 48,
+            }}
+          >
+            <span>Book transformative speakers directly.</span>
+            <span>No agencies. No gatekeepers.</span>
+          </div>
+
+          {/* Teal divider */}
+          <div
+            style={{
+              width: 64,
+              height: 3,
+              background: "#629DAB",
+              borderRadius: 2,
+              marginBottom: 40,
+            }}
+          />
+
+          {/* Stats row */}
+          <div style={{ display: "flex", gap: 56 }}>
+            {[
+              ["500+", "SPEAKERS"],
+              ["SOUTH AFRICA", "BASED"],
+              ["48h", "RESPONSE TIME"],
+            ].map(([value, label]) => (
+              <div
+                key={label}
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
+              >
+                <span
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: "#FFFFFF",
+                    letterSpacing: "-0.5px",
+                  }}
+                >
+                  {value}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 400,
+                    color: "#9AA1B0",
+                    letterSpacing: "2px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     ),
     { ...size }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/layout/AuthProvider";
@@ -31,38 +31,53 @@ const baseUrl = getBaseUrl();
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: {
-    default: "NxtSpeaker — Africa's Premier Speaker Platform",
-    template: "%s | NxtSpeaker",
+    default: "NXT Speaker — Book Speakers Directly",
+    template: "%s | NXT Speaker",
   },
   description:
-    "Connect with world-class speakers who drive transformation across Africa. Luxury speaker booking and hospitality platform.",
+    "South Africa's disruptive speaker booking platform. Discover and book world-class speakers directly — no agencies, no gatekeepers.",
+  keywords: [
+    "speaker booking",
+    "keynote speakers",
+    "South Africa speakers",
+    "corporate speakers",
+    "book a speaker",
+    "NXT Speaker",
+    "event speakers",
+    "motivational speakers South Africa",
+  ],
   openGraph: {
-    siteName: "NxtSpeaker",
+    siteName: "NXT Speaker",
     type: "website",
     locale: "en_ZA",
-    title: "NxtSpeaker — Africa's Premier Speaker Platform",
+    title: "NXT Speaker — Book Speakers Directly",
     description:
-      "Connect with world-class speakers who drive transformation across Africa. Luxury speaker booking and hospitality platform.",
-    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "NxtSpeaker — Africa's Premier Speaker Platform" }],
+      "South Africa's disruptive speaker booking platform. No agencies, no gatekeepers.",
+    images: [{ url: "/opengraph-image", width: 1200, height: 630, alt: "NXT Speaker — Book Speakers Directly" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "NxtSpeaker — Africa's Premier Speaker Platform",
+    title: "NXT Speaker — Book Speakers Directly",
     description:
-      "Connect with world-class speakers who drive transformation across Africa.",
+      "Discover and book world-class speakers directly. No agencies, no gatekeepers.",
     images: ["/opengraph-image"],
   },
   icons: {
     icon: "/icon.svg",
+    apple: "/apple-icon.png",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#031E57",
 };
 
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
-  name: "NxtSpeaker",
+  name: "NXT Speaker",
   description:
-    "Africa's premier luxury speaker booking and hospitality platform connecting world-class speakers with event organisers.",
+    "South Africa's disruptive speaker booking platform connecting event organisers directly with world-class speakers — no agencies, no gatekeepers.",
   url: baseUrl,
   logo: `${baseUrl}/icon.svg`,
   areaServed: "ZA",
