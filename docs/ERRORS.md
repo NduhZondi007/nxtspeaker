@@ -3,6 +3,62 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-08-11 · bug · Discover page slow + speakers require refresh (recurrence)
+
+**Type:** bug
+**Affected:** `src/app/client/discover/page.tsx`
+**Severity:** medium
+
+**What happened:**
+The `/client/discover` speaker listing took over a second to render and
+sometimes rendered "No speakers found" on first load, self-resolving only
+after a manual page refresh. This is the same symptom fixed once before in
+`c263003` ("fix logout and speaker discover auth race condition") — the
+earlier fix reduced but did not eliminate the race.
+
+**Root cause:**
+The page fetched speakers entirely client-side, gated behind `AuthProvider`'s
+client-side auth state (`getSession()` + a `profiles` select). That auth
+state is itself populated via a round trip that races the same browser
+Supabase client's internal JWT attachment. `speaker_profiles`/`profiles` RLS
+policies require `auth.uid() IS NOT NULL`; if the query fires before the JWT
+is attached, Postgres RLS returns `{ data: [], error: null }` — no error, so
+the empty result renders as a permanent "No speakers found" with no retry.
+Separately, the request waterfall (middleware `getUser()` → `ClientLayout`
+server `getUser()` + profile select → `AuthProvider`'s redundant client-side
+`getSession()` + profile select → the page's own fetch, always delayed by an
+unconditional 300ms debounce) accounted for the >1s load time even when the
+race wasn't lost.
+
+**Fix:**
+Converted `/client/discover` to a Server Component that fetches the default
+speaker list using the cookie-authenticated server Supabase client (the same
+one `ClientLayout` already uses to guard the route — no race is possible,
+since an unauthenticated request never reaches this far) and hands the
+result to a new `DiscoverClient` Client Component as initial state. The
+query-building logic (`speaker_profiles` filters/sort + search) was
+extracted into a shared repository function, `getSpeakers()` in
+`src/lib/data/speakers.ts`, used by both the server-side initial fetch and
+the client-side filter-change refetch — one definition instead of two
+copies that can drift apart. Unit tests added:
+`src/__tests__/lib/data/speakers.test.ts`.
+
+**Prevention:**
+For any authenticated Supabase read that backs a page's initial render,
+fetch it in a Server Component using the cookie-authenticated server client
+rather than in a `useEffect` gated on client-side auth state — the server
+client can't race the session because the route is already guarded before
+the page renders. Reserve client-side Supabase calls for data that changes
+after user interaction (filters, search), and centralize the query-building
+logic in a shared function so the initial (server) and interactive (client)
+fetches can't diverge. Follow-up not yet addressed: `AuthProvider`
+(`src/components/layout/AuthProvider.tsx`) still re-derives `user`/`profile`
+client-side on every protected page via its own `getSession()` + `profiles`
+select, duplicating work `ClientLayout` already did server-side — a related
+latency source across all protected pages, out of scope for this fix.
+
+---
+
 ## 2026-06-23 · bug · Profile picture upload times out / silently fails
 
 **Type:** bug

@@ -9,6 +9,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Discover page slow to load + speakers require refresh (recurrence of the
+  `c263003` fix)** — the page fetched speakers entirely client-side, gated
+  behind `AuthProvider`'s own client-side `getSession()`/`profiles` round
+  trip, which itself raced the browser Supabase client's JWT attachment
+  against the `auth.uid() IS NOT NULL` RLS policies on `speaker_profiles`/
+  `profiles`. A lost race returned `{ data: [], error: null }` (RLS blocks
+  silently, no error) and rendered a permanent "No speakers found" with no
+  retry; a won race still waited through a 4-hop auth waterfall plus an
+  unconditional 300ms debounce before painting, explaining the >1s load
+  time. Fixed by converting `src/app/client/discover/page.tsx` to a Server
+  Component that fetches the initial speaker list with the
+  cookie-authenticated server client (no race possible — `ClientLayout`
+  already guards the route) and hydrates a new `DiscoverClient` Client
+  Component with the result; the query logic itself now lives in one shared
+  place, `src/lib/data/speakers.ts::getSpeakers()`, used by both the initial
+  server fetch and the client-side filter-change refetch so they can't drift
+  apart again. See `docs/ERRORS.md` (2026-08-11) for full root cause.
 - **Logout button broken** — `Sidebar.tsx` was calling `supabase.auth.signOut()` via the
   browser Supabase client which only cleared localStorage; the SSR auth cookies
   (`sb-*-auth-token`) remained valid so the middleware redirected users straight back to
