@@ -3,6 +3,53 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-08-13 · bug · No organiser feedback on booking status after submit or speaker response
+
+**Type:** bug
+**Affected:** `src/app/client/discover/DiscoverClient.tsx`, `src/app/actions/bookings.ts`, booking status feedback loop overall
+**Severity:** medium
+
+**What happened:**
+Reported by the user as "when I press request book it immediately goes back to
+speaker menu" — after submitting a booking request, the client landed back on
+the "Find Speakers" grid with no persistent confirmation. Investigating the
+wider flow (two Explore agents + direct file review) also confirmed a second,
+related gap: once a booking is `PENDING`, there was no way for the organiser
+to learn that the speaker later accepted (`CONFIRMED`) or declined
+(`DECLINED`) short of manually reloading `/client/bookings` or the booking
+detail page. The `TopBar` notification bell is decorative (no handler, no
+data source), and `updateBookingStatus` only updates the DB row and calls
+`revalidatePath`, which has no effect on an already-open browser tab.
+
+**Root cause:**
+`handleSubmitBooking` in `DiscoverClient.tsx` called `setBookingSpeaker(null)`
+on success, closing the booking modal and returning to the underlying grid;
+the only feedback was a `useToast()` toast that auto-dismisses after 4s. No
+redirect to a confirmation view existed. Separately, no realtime subscription,
+polling, or notification mechanism (email/toast/inbox) existed anywhere for
+the `bookings` table — `useRealtimeMessages` only covers chat `messages`.
+
+**Fix:**
+- `DiscoverClient.tsx` now redirects to `/client/bookings/[id]` (the new
+  booking's detail page, already showing the `Pending` badge and full
+  details) via `useRouter().push()` after a successful `createBooking()`
+  call, in addition to the existing toast.
+- Added `useRealtimeBookingStatus` (mirrors `useRealtimeMessages`'s pattern)
+  subscribed to `bookings` `UPDATE` events filtered by `client_id`, mounted
+  for every client-area page via `BookingStatusWatcher` in
+  `src/app/client/layout.tsx`. On a status change it fires a toast and calls
+  `router.refresh()` so the current page's server-rendered data (badge,
+  chat-lock state) updates without a manual reload.
+- Added migration `20260813090000_bookings-realtime-publication.sql` to
+  ensure `bookings` is on the `supabase_realtime` publication.
+
+**Prevention:**
+Added `src/__tests__/app/client/discover/DiscoverClient.test.tsx` (asserts
+the redirect fires on success and not on error) and
+`src/__tests__/lib/hooks/useRealtimeBookingStatus.test.tsx` (asserts the
+realtime subscription is registered with the correct filter and that
+`router.refresh()`/toast fire only when `status` actually changes).
+
 ## 2026-08-11 · bug · Discover page slow + speakers require refresh (recurrence)
 
 **Type:** bug

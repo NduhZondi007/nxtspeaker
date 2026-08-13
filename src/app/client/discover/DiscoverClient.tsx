@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { TopBar } from "@/components/layout/TopBar";
@@ -33,6 +34,7 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
   const [reviewCache, setReviewCache] = useState<Map<string, Review[]>>(new Map());
   const { profile } = useAuth();
   const { success, error } = useToast();
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const isFirstRender = useRef(true);
 
@@ -106,6 +108,10 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
     } else {
       success("Booking request sent!", "The speaker will review and respond within 48 hours.");
       setBookingSpeaker(null);
+      // Land the client on the new booking's confirmation page instead of
+      // just closing the modal back to the speaker grid — the toast alone
+      // fades and leaves no persistent evidence the request went through.
+      router.push(`/client/bookings/${result.data.id}`);
     }
   }
 

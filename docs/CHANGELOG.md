@@ -8,7 +8,26 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Live booking-status feedback for organisers** — added
+  `useRealtimeBookingStatus` (`src/lib/hooks/useRealtimeBookingStatus.ts`), a
+  Supabase Realtime subscription on `bookings` `UPDATE` events filtered by
+  `client_id`, mounted app-wide for clients via
+  `BookingStatusWatcher`/`src/app/client/layout.tsx`. When a speaker accepts,
+  declines, or otherwise changes a booking's status, the organiser now gets
+  a toast and the current page (list/detail/dashboard) refreshes
+  automatically instead of requiring a manual reload. Added migration
+  `20260813090000_bookings-realtime-publication.sql` to guarantee the
+  `bookings` table is on the `supabase_realtime` publication.
+
 ### Fixed
+- **Booking request silently dropped client back on the speaker grid** —
+  `DiscoverClient.tsx`'s `handleSubmitBooking` only fired a toast and closed
+  the modal on success, so the sole evidence a booking request was sent was
+  a toast that fades in a few seconds. Fixed by redirecting to the new
+  booking's `/client/bookings/[id]` confirmation page (which shows the
+  `Pending` badge and full details) after a successful submit. See
+  `docs/ERRORS.md` (2026-08-13).
 - **Discover page slow to load + speakers require refresh (recurrence of the
   `c263003` fix)** — the page fetched speakers entirely client-side, gated
   behind `AuthProvider`'s own client-side `getSession()`/`profiles` round

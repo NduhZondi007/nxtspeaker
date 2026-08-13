@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SidebarProvider } from "@/components/layout/SidebarContext";
+import { BookingStatusWatcher } from "@/components/bookings/BookingStatusWatcher";
 
 export const metadata: Metadata = {
   title: "Client Portal",
@@ -29,6 +30,7 @@ export default async function ClientLayout({ children }: { children: React.React
 
   return (
     <SidebarProvider>
+      {profile.role === "CLIENT" && <BookingStatusWatcher clientId={user.id} />}
       <div className="flex min-h-screen bg-white">
         <Sidebar role="CLIENT" userName={profile.full_name} avatarUrl={profile.avatar_url} isAdmin={profile.role === "ADMIN"} />
         <main className="flex-1 min-w-0 overflow-auto">{children}</main>
