@@ -8,6 +8,18 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Every Vercel Preview deployment failing to build** — `getBaseUrl()`
+  (`src/lib/env.ts`) threw when `NEXT_PUBLIC_APP_URL` was unset, and the
+  root layout calls it at module scope, so the missing var killed the
+  build for every route, not just one page. The var was configured for
+  Vercel's Production environment but not Preview, so every branch/PR
+  deploy since commit `8087258` (2026-08-11) failed while `main` stayed
+  green. Fixed by falling back to Vercel's auto-injected `VERCEL_URL`
+  (present on every deployment with no manual config) before throwing —
+  local/CI builds with neither var set still fail loudly. See
+  `docs/ERRORS.md` (2026-08-17).
+
 ### Added
 - **Live booking-status feedback for organisers** — added
   `useRealtimeBookingStatus` (`src/lib/hooks/useRealtimeBookingStatus.ts`), a
