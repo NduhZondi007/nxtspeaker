@@ -3,6 +3,63 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-08-18 · bug · "Request Booking" drops clients back to the speaker grid on their first booking with a speaker
+
+**Type:** bug
+**Affected:** `src/app/client/discover/DiscoverClient.tsx`, `src/components/speakers/SpeakerModal.tsx`, `hospitality_riders` RLS policy
+**Severity:** high
+
+**What happened:**
+After `af87b36` (which fixed the *post-submit* redirect) merged to `main`,
+the user reported the exact same symptom persisting: pressing "Request
+Booking" on a speaker's profile modal dropped straight back to the bare
+speaker grid with zero feedback — no toast, success or error. Repro details
+(production URL, fresh incognito, no toast at all) ruled out a stale bundle
+and ruled out `handleSubmitBooking` (which always shows a toast on either
+path) — pointing to an earlier step in the flow that `af87b36` never touched.
+
+**Root cause:**
+Two compounding bugs in `handleBook()`, fired the instant "Request Booking"
+is clicked (before the multi-step booking wizard is even shown):
+1. `setSelectedSpeaker(null)` ran synchronously *before* `await`ing the
+   `hospitality_riders` fetch, closing the profile modal immediately with no
+   loading state — the user stared at the bare grid until the fetch resolved
+   and the booking wizard finally opened.
+2. The only RLS SELECT policy on `hospitality_riders` available to a client
+   required a `bookings` row for that exact client+speaker pair to already
+   exist — circular, since the rider needs to be reviewed *during* booking
+   creation. On a client's first-ever attempt to book a given speaker, RLS
+   blocked the read, `.single()` turned the resulting 0 rows into a
+   PostgREST error, and `const { data: rider } = await ...` discarded that
+   error silently — so `BookingForm` fell back to "No hospitality rider has
+   been configured," even when the speaker had real requirements set. Any
+   client re-booking a speaker they'd already booked once satisfied the old
+   policy, which is why this wasn't caught by repeat-tester testing.
+
+**Fix:**
+`handleBook()` now keeps the profile modal open (with a loading spinner on
+the "Request Booking" button, via a new `bookingLoading` prop reusing
+`Button`'s existing `loading` state) until the fetch resolves and the
+booking wizard is ready to replace it — `setBookingRider`/`setBookingSpeaker`/
+`setSelectedSpeaker(null)` now happen together in one batch. Swapped
+`.single()` for `.maybeSingle()` and log (rather than discard) a real fetch
+error. New migration `20260818190000_hospitality-riders-preview-select.sql`
+adds an RLS policy letting any authenticated user view an active speaker's
+`hospitality_riders` row (mirroring the existing `speaker_profiles`
+"Anyone authenticated can view active speakers" policy) and drops the old
+circular one.
+
+**Prevention:**
+Added `describe("DiscoverClient / handleBook")` in
+`src/__tests__/app/client/discover/DiscoverClient.test.tsx` — asserts a
+loading indicator is visible while the fetch is in flight (catches the
+"drops to blank grid" regression directly), that the wizard opens on both
+success and fetch-error, and that a fetch error is surfaced via
+`console.error` rather than silently discarded. General lesson (recurring
+theme across `c263003`, `8087258`, and this bug): never destructure `data`
+out of a Supabase query without also capturing `error` — RLS blocks are
+indistinguishable from "no rows" unless the error is checked.
+
 ## 2026-08-17 · config · Every Vercel Preview deployment failing to build since 2026-08-11
 
 **Type:** config
