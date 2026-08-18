@@ -3,6 +3,46 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-08-18 · bug · "Request Booking" button spins forever, wizard never opens (regression in the same-day fix)
+
+**Type:** bug
+**Affected:** `src/app/client/discover/DiscoverClient.tsx`
+**Severity:** high
+
+**What happened:**
+Immediately after deploying the `handleBook` blank-grid fix (this same day)
+and applying its companion RLS migration, the user reported "Request
+Booking" now shows a loading spinner that never resolves — the button
+never returns to normal and the booking wizard never opens.
+
+**Root cause:**
+The blank-grid fix added a loading state around the `hospitality_riders`
+fetch, but only handled the case where the query *resolves* with an error
+(`{ data, error }`) — there was no `try/catch` around the `await` itself.
+If the call *throws* instead of resolving (network failure, CORS issue, or
+any unexpected client-side exception) the `async` function exits via an
+unhandled promise rejection, and execution never reaches the final
+`setBookingLoading(false)` — leaving the button permanently spinning with
+no console or network trace to explain why. Confirmed via Supabase edge
+logs and Vercel runtime logs: no server-side errors, no recent
+`hospitality_riders` request at all — consistent with the failure
+happening client-side, before or during the fetch, not on the server.
+
+**Fix:**
+Wrapped the fetch in `try/catch/finally` — `finally` unconditionally clears
+`bookingLoading` and opens the wizard (with `rider: null` on any failure,
+same graceful fallback `BookingForm` already had), so a thrown exception
+can no longer leave the flow stuck. `catch` logs the exception the same
+way the existing `if (riderError)` branch already logged a resolved error.
+
+**Prevention:**
+Added a test simulating `.maybeSingle()` rejecting (not just resolving
+with an error) and asserting the loading state still clears and the
+wizard still opens — the resolved-error case alone didn't catch this.
+General lesson: any `setXLoading(true)` must be paired with a `finally`
+that clears it, not just a handler for the expected error shape — a
+same-day lesson learned the hard way on this very fix.
+
 ## 2026-08-18 · infrastructure · Supabase Preview branching failing on every PR
 
 **Type:** infrastructure
