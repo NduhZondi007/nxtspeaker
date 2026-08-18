@@ -223,4 +223,27 @@ describe("DiscoverClient / handleSubmitBooking", () => {
 
     expect(mockPush).not.toHaveBeenCalled();
   });
+
+  it("shows an error toast (does not silently fail) when createBooking throws instead of resolving with an error", async () => {
+    // Unlike a resolved { error } (handled above), this simulates the call
+    // itself rejecting — a network failure or unexpected server action
+    // exception. Without a try/catch, this is a silent unhandled rejection:
+    // BookingForm's own local `finally` still re-enables its submit button,
+    // but the user gets zero toast, success or error — no explanation at all.
+    vi.mocked(createBooking).mockRejectedValue(new Error("Failed to fetch"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+
+    renderDiscoverClient();
+
+    await user.click(screen.getByText("select-speaker-1"));
+    await user.click(await screen.findByText("book-speaker-1"));
+    await user.click(await screen.findByText("submit-booking"));
+
+    expect(await screen.findByText("Booking failed")).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });
