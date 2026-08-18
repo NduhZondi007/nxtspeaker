@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Supabase Preview branching failing on every PR** — `seed.sql` inserted
+  demo `profiles` rows with placeholder UUIDs that don't exist in
+  `auth.users`, and `profiles.id` has a foreign key to it; a fresh preview
+  branch doesn't inherit `auth.users` data, so the seed failed immediately
+  with a foreign key violation on every PR (previously masked because
+  preview branching had never actually run to completion before). Fixed by
+  seeding matching `auth.users` rows first and making the rest of the file
+  idempotent. See `docs/ERRORS.md` (2026-08-18).
 - **"Request Booking" silently dropped clients back on the speaker grid on
   their first booking with a speaker** — a different, earlier-in-the-flow bug
   than the `af87b36` post-submit redirect fix. `handleBook()`

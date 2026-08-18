@@ -3,6 +3,52 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-08-18 · infrastructure · Supabase Preview branching failing on every PR
+
+**Type:** infrastructure
+**Affected:** `supabase/seed.sql`
+**Severity:** medium
+
+**What happened:**
+Discovered while investigating an unrelated PR: the "Supabase Preview" GitHub
+check failed with `insert or update on table "profiles" violates foreign key
+constraint "profiles_id_fkey" (SQLSTATE 23503)`. Not caused by that PR's
+actual changes — cross-checked and this check had only ever shown
+`"skipped"` on prior PRs ("This git branch is not associated with any
+Supabase Branch"), meaning preview branching had never actually executed
+successfully on this repo before.
+
+**Root cause:**
+`supabase/seed.sql` inserts demo `profiles` rows with hardcoded placeholder
+UUIDs (its own header comment admitted: "Auth users must be created via
+Supabase Dashboard or Auth API first"). `profiles.id` has a foreign key to
+`auth.users.id`; a fresh preview branch doesn't inherit `auth.users` data,
+so the very first seed insert fails immediately.
+
+**Fix:**
+Added a STEP 0 to `seed.sql` inserting matching `auth.users` rows before the
+`profiles` inserts, satisfying the FK. Deliberately omits `role` from
+`raw_user_meta_data` so the `on_auth_user_created` trigger creates a default
+`'CLIENT'` profiles row; the existing `profiles` inserts then use
+`ON CONFLICT (id) DO UPDATE` (not a fresh `INSERT`) to promote speakers to
+`SPEAKER`, so `on_speaker_profile_created` (`AFTER INSERT ON profiles`)
+never re-fires and creates duplicate junk `speaker_profiles`/
+`hospitality_riders` rows alongside the curated ones the file inserts
+explicitly. Also made the rest of the file idempotent (`ON CONFLICT DO
+NOTHING` / `WHERE NOT EXISTS`) since preview branches re-run the seed on
+every push. Not verified against a real Postgres instance (no Docker in
+this environment) — verified by hand against the actual trigger/constraint
+definitions in `20260309221803_new-migration.sql`; the next PR push's
+"Supabase Preview" check is the real validation.
+
+**Prevention:**
+Any table with a foreign key to `auth.users.id` needs matching `auth.users`
+rows in the seed file, in insert order, for preview/local branches to seed
+successfully — `auth.users` is never auto-populated by CLI tooling for
+non-production databases. When re-touching `seed.sql`, keep every insert
+idempotent (`ON CONFLICT` or `WHERE NOT EXISTS`); Supabase branching re-runs
+this file on every push to a PR, not just once.
+
 ## 2026-08-18 · bug · "Request Booking" drops clients back to the speaker grid on their first booking with a speaker
 
 **Type:** bug
