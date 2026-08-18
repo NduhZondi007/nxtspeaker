@@ -31,6 +31,7 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
   const [speakerReviews, setSpeakerReviews] = useState<Review[]>([]);
   const [bookingSpeaker, setBookingSpeaker] = useState<SpeakerProfile | null>(null);
   const [bookingRider, setBookingRider] = useState<HospitalityRider | null>(null);
+  const [bookingLoading, setBookingLoading] = useState(false);
   const [reviewCache, setReviewCache] = useState<Map<string, Review[]>>(new Map());
   const { profile } = useAuth();
   const { success, error } = useToast();
@@ -86,14 +87,27 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
   }
 
   async function handleBook(speaker: SpeakerProfile) {
-    setSelectedSpeaker(null);
-    const { data: rider } = await supabase
+    // Keep the profile modal open (with a loading indicator on the button)
+    // until the booking modal is actually ready to replace it — closing
+    // selectedSpeaker up front left a beat with neither modal visible,
+    // which read as "nothing happened" / a bounce back to the grid.
+    setBookingLoading(true);
+    const { data: rider, error: riderError } = await supabase
       .from("hospitality_riders")
       .select("*")
       .eq("speaker_id", speaker.id)
-      .single();
+      .maybeSingle();
+    if (riderError) {
+      // RLS or network failure — don't silently proceed as if the speaker
+      // simply has no rider configured; log it, but still open the wizard
+      // with rider: null (BookingForm already handles that gracefully)
+      // rather than stranding the client with no path forward.
+      console.error("[discover] hospitality_riders fetch failed:", riderError);
+    }
     setBookingRider((rider as HospitalityRider) ?? null);
     setBookingSpeaker(speaker);
+    setSelectedSpeaker(null);
+    setBookingLoading(false);
   }
 
   async function handleSubmitBooking(formData: BookingFormData) {
@@ -153,6 +167,7 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
         reviews={speakerReviews}
         onClose={() => setSelectedSpeaker(null)}
         onBook={handleBook}
+        bookingLoading={bookingLoading}
       />
 
       {bookingSpeaker && profile && (
