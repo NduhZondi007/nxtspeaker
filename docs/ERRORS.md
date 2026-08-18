@@ -3,6 +3,99 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-08-17 · config · Every Vercel Preview deployment failing to build since 2026-08-11
+
+**Type:** config
+**Affected:** `src/lib/env.ts`, `src/app/layout.tsx`, `src/app/sitemap.ts`, `src/app/robots.ts`
+**Severity:** medium
+
+**What happened:**
+User asked why the latest push (`af87b36`, "give organisers persistent
+feedback on booking status") wasn't deploying on Vercel. Cross-checking
+GitHub commit statuses and the Vercel deployment (`dpl_AZ2dgApqoJoZZvyCWWtKwyWuGnCD`)
+showed the build failing with `Command "npm run build" exited with 1`.
+Walking the history further showed this wasn't new: every deployment on
+`fix/discover-speakers-auth-race` had failed since `8087258` (2026-08-11),
+while every `main`/production deployment in the same window stayed green.
+
+**Root cause:**
+The build log's actual error was `NEXT_PUBLIC_APP_URL is not set`, thrown
+by `getBaseUrl()` in `src/lib/env.ts`. `src/app/layout.tsx` calls
+`getBaseUrl()` at module scope (`const baseUrl = getBaseUrl()`), and as
+the root layout it's evaluated during page-data collection for every
+route, so the missing var failed the entire build rather than one page.
+`NEXT_PUBLIC_APP_URL` was configured for the Vercel project's Production
+environment but never added to Preview, so any deploy triggered by a
+branch push or PR (not a merge to `main`) failed while production
+deploys — which only ever run in the Production environment — kept
+succeeding. Local builds also succeeded throughout because `.env.local`
+always had the var set, masking the gap.
+
+**Fix:**
+`getBaseUrl()` now falls back to Vercel's auto-injected `VERCEL_URL`
+(present on every deployment — production, preview, and branch — with
+no manual configuration) before throwing. Local/CI builds with neither
+`NEXT_PUBLIC_APP_URL` nor `VERCEL_URL` set still throw, preserving the
+intent of `b52379a` (no silent fallback to the wrong domain). Verified
+by building locally with `NEXT_PUBLIC_APP_URL` unset and `VERCEL_URL`
+set to the actual failing preview's hostname — build passed where it
+previously failed with the identical error.
+
+**Prevention:**
+Added `src/__tests__/lib/env.test.ts` covering all four branches of
+`getBaseUrl()` (explicit var set, both set, fallback-only, neither set).
+Worth a follow-up: also set `NEXT_PUBLIC_APP_URL` explicitly for the
+Preview environment in Vercel project settings so previews resolve to
+the production domain rather than their own preview hostname, if that's
+the desired behaviour for OG/canonical URLs on preview links.
+
+## 2026-08-13 · bug · No organiser feedback on booking status after submit or speaker response
+
+**Type:** bug
+**Affected:** `src/app/client/discover/DiscoverClient.tsx`, `src/app/actions/bookings.ts`, booking status feedback loop overall
+**Severity:** medium
+
+**What happened:**
+Reported by the user as "when I press request book it immediately goes back to
+speaker menu" — after submitting a booking request, the client landed back on
+the "Find Speakers" grid with no persistent confirmation. Investigating the
+wider flow (two Explore agents + direct file review) also confirmed a second,
+related gap: once a booking is `PENDING`, there was no way for the organiser
+to learn that the speaker later accepted (`CONFIRMED`) or declined
+(`DECLINED`) short of manually reloading `/client/bookings` or the booking
+detail page. The `TopBar` notification bell is decorative (no handler, no
+data source), and `updateBookingStatus` only updates the DB row and calls
+`revalidatePath`, which has no effect on an already-open browser tab.
+
+**Root cause:**
+`handleSubmitBooking` in `DiscoverClient.tsx` called `setBookingSpeaker(null)`
+on success, closing the booking modal and returning to the underlying grid;
+the only feedback was a `useToast()` toast that auto-dismisses after 4s. No
+redirect to a confirmation view existed. Separately, no realtime subscription,
+polling, or notification mechanism (email/toast/inbox) existed anywhere for
+the `bookings` table — `useRealtimeMessages` only covers chat `messages`.
+
+**Fix:**
+- `DiscoverClient.tsx` now redirects to `/client/bookings/[id]` (the new
+  booking's detail page, already showing the `Pending` badge and full
+  details) via `useRouter().push()` after a successful `createBooking()`
+  call, in addition to the existing toast.
+- Added `useRealtimeBookingStatus` (mirrors `useRealtimeMessages`'s pattern)
+  subscribed to `bookings` `UPDATE` events filtered by `client_id`, mounted
+  for every client-area page via `BookingStatusWatcher` in
+  `src/app/client/layout.tsx`. On a status change it fires a toast and calls
+  `router.refresh()` so the current page's server-rendered data (badge,
+  chat-lock state) updates without a manual reload.
+- Added migration `20260813090000_bookings-realtime-publication.sql` to
+  ensure `bookings` is on the `supabase_realtime` publication.
+
+**Prevention:**
+Added `src/__tests__/app/client/discover/DiscoverClient.test.tsx` (asserts
+the redirect fires on success and not on error) and
+`src/__tests__/lib/hooks/useRealtimeBookingStatus.test.tsx` (asserts the
+realtime subscription is registered with the correct filter and that
+`router.refresh()`/toast fire only when `status` actually changes).
+
 ## 2026-08-11 · bug · Discover page slow + speakers require refresh (recurrence)
 
 **Type:** bug
