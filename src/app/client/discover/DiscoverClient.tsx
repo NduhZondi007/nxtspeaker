@@ -92,22 +92,33 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
     // selectedSpeaker up front left a beat with neither modal visible,
     // which read as "nothing happened" / a bounce back to the grid.
     setBookingLoading(true);
-    const { data: rider, error: riderError } = await supabase
-      .from("hospitality_riders")
-      .select("*")
-      .eq("speaker_id", speaker.id)
-      .maybeSingle();
-    if (riderError) {
-      // RLS or network failure — don't silently proceed as if the speaker
-      // simply has no rider configured; log it, but still open the wizard
-      // with rider: null (BookingForm already handles that gracefully)
-      // rather than stranding the client with no path forward.
-      console.error("[discover] hospitality_riders fetch failed:", riderError);
+    let rider: HospitalityRider | null = null;
+    try {
+      const { data, error: riderError } = await supabase
+        .from("hospitality_riders")
+        .select("*")
+        .eq("speaker_id", speaker.id)
+        .maybeSingle();
+      if (riderError) {
+        // RLS or network failure — don't silently proceed as if the speaker
+        // simply has no rider configured; log it, but still open the wizard
+        // with rider: null (BookingForm already handles that gracefully)
+        // rather than stranding the client with no path forward.
+        console.error("[discover] hospitality_riders fetch failed:", riderError);
+      }
+      rider = (data as HospitalityRider) ?? null;
+    } catch (err) {
+      // The call itself rejecting (network failure, unexpected client
+      // exception) — not just resolving with an error — must not leave
+      // bookingLoading stuck true forever with the button spinning and the
+      // wizard never opening. Same fallback as the error-return path above.
+      console.error("[discover] hospitality_riders fetch threw:", err);
+    } finally {
+      setBookingRider(rider);
+      setBookingSpeaker(speaker);
+      setSelectedSpeaker(null);
+      setBookingLoading(false);
     }
-    setBookingRider((rider as HospitalityRider) ?? null);
-    setBookingSpeaker(speaker);
-    setSelectedSpeaker(null);
-    setBookingLoading(false);
   }
 
   async function handleSubmitBooking(formData: BookingFormData) {

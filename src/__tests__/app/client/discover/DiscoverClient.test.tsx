@@ -167,6 +167,27 @@ describe("DiscoverClient / handleBook", () => {
 
     consoleErrorSpy.mockRestore();
   });
+
+  it("recovers from a thrown/rejected rider fetch instead of leaving the button permanently loading", async () => {
+    // Unlike a resolved { error } (handled above), this simulates the fetch
+    // itself rejecting — a network failure or unexpected client exception.
+    // Production symptom this guards against: the button spins forever and
+    // the wizard never opens because nothing ever clears bookingLoading.
+    mockMaybeSingle.mockRejectedValue(new Error("Failed to fetch"));
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+
+    renderDiscoverClient();
+
+    await user.click(screen.getByText("select-speaker-1"));
+    await user.click(await screen.findByText("book-speaker-1"));
+
+    expect(await screen.findByText("submit-booking")).toBeInTheDocument();
+    expect(screen.queryByText("booking-loading")).not.toBeInTheDocument();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
 });
 
 describe("DiscoverClient / handleSubmitBooking", () => {
