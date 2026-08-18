@@ -9,6 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Submitting a booking silently failed with no toast if `createBooking`
+  threw** — `handleSubmitBooking` only handled a *resolved* `{ error }`,
+  the same class of gap already fixed in `handleBook` this same day.
+  Wrapped in `try/catch`; a thrown exception now shows an error toast
+  instead of a silent unhandled rejection.
 - **"Request Booking" button stuck spinning forever, wizard never opens** —
   regression in the same-day `handleBook` blank-grid fix: the loading state
   only cleared when the `hospitality_riders` fetch *resolved* (even with an
