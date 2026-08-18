@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **"Request Booking" button stuck spinning forever, wizard never opens** —
+  regression in the same-day `handleBook` blank-grid fix: the loading state
+  only cleared when the `hospitality_riders` fetch *resolved* (even with an
+  error), not when it *threw*. A thrown exception left `bookingLoading`
+  stuck `true` with no server-side trace to explain why. Wrapped the fetch
+  in `try/catch/finally` so the loading state always clears and the wizard
+  always opens, regardless of how the fetch fails. See `docs/ERRORS.md`
+  (2026-08-18).
 - **Supabase Preview branching failing on every PR** — `seed.sql` inserted
   demo `profiles` rows with placeholder UUIDs that don't exist in
   `auth.users`, and `profiles.id` has a foreign key to it; a fresh preview
