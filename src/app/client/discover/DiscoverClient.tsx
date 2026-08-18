@@ -123,20 +123,30 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
 
   async function handleSubmitBooking(formData: BookingFormData) {
     if (!bookingSpeaker) return;
-    // quoted_fee_zar is looked up server-side — not passed from client
-    const result = await createBooking({
-      speaker_id: bookingSpeaker.id,
-      ...formData,
-    });
-    if (result.error) {
-      error("Booking failed", result.error);
-    } else {
-      success("Booking request sent!", "The speaker will review and respond within 48 hours.");
-      setBookingSpeaker(null);
-      // Land the client on the new booking's confirmation page instead of
-      // just closing the modal back to the speaker grid — the toast alone
-      // fades and leaves no persistent evidence the request went through.
-      router.push(`/client/bookings/${result.data.id}`);
+    try {
+      // quoted_fee_zar is looked up server-side — not passed from client
+      const result = await createBooking({
+        speaker_id: bookingSpeaker.id,
+        ...formData,
+      });
+      if (result.error) {
+        error("Booking failed", result.error);
+      } else {
+        success("Booking request sent!", "The speaker will review and respond within 48 hours.");
+        setBookingSpeaker(null);
+        // Land the client on the new booking's confirmation page instead of
+        // just closing the modal back to the speaker grid — the toast alone
+        // fades and leaves no persistent evidence the request went through.
+        router.push(`/client/bookings/${result.data.id}`);
+      }
+    } catch (err) {
+      // The call itself rejecting (network failure, unexpected server
+      // action exception) — not just resolving with { error }. BookingForm's
+      // own local `finally` still re-enables its submit button either way,
+      // but without this catch the user gets no toast at all, success or
+      // error, and no idea whether the request went through.
+      console.error("[discover] createBooking threw:", err);
+      error("Booking failed", "Something went wrong — please try again.");
     }
   }
 
