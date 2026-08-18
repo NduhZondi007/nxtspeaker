@@ -9,6 +9,31 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Supabase Preview branching failing on every PR** — `seed.sql` inserted
+  demo `profiles` rows with placeholder UUIDs that don't exist in
+  `auth.users`, and `profiles.id` has a foreign key to it; a fresh preview
+  branch doesn't inherit `auth.users` data, so the seed failed immediately
+  with a foreign key violation on every PR (previously masked because
+  preview branching had never actually run to completion before). Fixed by
+  seeding matching `auth.users` rows first and making the rest of the file
+  idempotent. See `docs/ERRORS.md` (2026-08-18).
+- **"Request Booking" silently dropped clients back on the speaker grid on
+  their first booking with a speaker** — a different, earlier-in-the-flow bug
+  than the `af87b36` post-submit redirect fix. `handleBook()`
+  (`src/app/client/discover/DiscoverClient.tsx`) closed the speaker profile
+  modal *before* awaiting the hospitality-rider fetch, with no loading state,
+  so every click produced a beat of "nothing on screen" before the booking
+  wizard opened. Compounded by a circular RLS policy on `hospitality_riders`
+  (a client could only view a rider once a booking already existed with that
+  speaker) whose resulting error was silently discarded, misrepresenting real
+  hospitality requirements as "not configured." Fixed by keeping the profile
+  modal open with a loading spinner on the "Request Booking" button
+  (`SpeakerModal`'s new `bookingLoading` prop, reusing `Button`'s existing
+  `loading` state) until the fetch resolves, switching `.single()` to
+  `.maybeSingle()`, logging fetch errors instead of dropping them, and a new
+  migration granting clients read access to an active speaker's rider before
+  their first booking (`20260818190000_hospitality-riders-preview-select.sql`).
+  See `docs/ERRORS.md` (2026-08-18).
 - **Every Vercel Preview deployment failing to build** — `getBaseUrl()`
   (`src/lib/env.ts`) threw when `NEXT_PUBLIC_APP_URL` was unset, and the
   root layout calls it at module scope, so the missing var killed the

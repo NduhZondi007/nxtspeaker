@@ -8,6 +8,11 @@ import type { SpeakerProfile } from "@/lib/types/database";
 
 const mockPush = vi.fn();
 
+const { mockMaybeSingle, mockReviewsOrder } = vi.hoisted(() => ({
+  mockMaybeSingle: vi.fn(),
+  mockReviewsOrder: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
@@ -27,8 +32,8 @@ vi.mock("@/lib/supabase/client", () => ({
     from: () => ({
       select: () => ({
         eq: () => ({
-          single: () => Promise.resolve({ data: null, error: null }),
-          order: () => Promise.resolve({ data: [], error: null }),
+          maybeSingle: () => mockMaybeSingle(),
+          order: () => mockReviewsOrder(),
         }),
       }),
     }),
@@ -44,8 +49,20 @@ vi.mock("@/components/speakers/SpeakerCard", () => ({
 }));
 
 vi.mock("@/components/speakers/SpeakerModal", () => ({
-  SpeakerModal: ({ speaker, onBook }: { speaker: SpeakerProfile | null; onBook: (s: SpeakerProfile) => void }) =>
-    speaker ? <button onClick={() => onBook(speaker)}>book-{speaker.id}</button> : null,
+  SpeakerModal: ({
+    speaker,
+    onBook,
+    bookingLoading,
+  }: {
+    speaker: SpeakerProfile | null;
+    onBook: (s: SpeakerProfile) => void;
+    bookingLoading?: boolean;
+  }) =>
+    speaker ? (
+      <button onClick={() => onBook(speaker)} disabled={bookingLoading}>
+        {bookingLoading ? "booking-loading" : `book-${speaker.id}`}
+      </button>
+    ) : null,
 }));
 
 vi.mock("@/components/bookings/BookingForm", () => ({
@@ -87,10 +104,77 @@ function renderDiscoverClient() {
   );
 }
 
+describe("DiscoverClient / handleBook", () => {
+  beforeEach(() => {
+    mockMaybeSingle.mockReset();
+    mockReviewsOrder.mockReset().mockResolvedValue({ data: [], error: null });
+  });
+
+  it("keeps the profile modal visible with a loading indicator while the rider fetch is in flight — never drops to the bare grid with no feedback", async () => {
+    let resolveRider!: (v: { data: null; error: null }) => void;
+    mockMaybeSingle.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRider = resolve;
+      })
+    );
+    const user = userEvent.setup();
+
+    renderDiscoverClient();
+
+    await user.click(screen.getByText("select-speaker-1"));
+    await user.click(await screen.findByText("book-speaker-1"));
+
+    // Still mid-fetch: the mocked SpeakerModal must still be rendering (now
+    // showing a loading indicator) — never a frame with neither modal shown.
+    expect(await screen.findByText("booking-loading")).toBeInTheDocument();
+    expect(screen.queryByText("submit-booking")).not.toBeInTheDocument();
+
+    resolveRider({ data: null, error: null });
+
+    expect(await screen.findByText("submit-booking")).toBeInTheDocument();
+  });
+
+  it("opens the booking wizard once the rider fetch resolves, with the fetched rider", async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: { id: "rider-1", speaker_id: "speaker-1" },
+      error: null,
+    });
+    const user = userEvent.setup();
+
+    renderDiscoverClient();
+
+    await user.click(screen.getByText("select-speaker-1"));
+    await user.click(await screen.findByText("book-speaker-1"));
+
+    expect(await screen.findByText("submit-booking")).toBeInTheDocument();
+  });
+
+  it("logs (does not silently discard) a rider-fetch error, and still opens the wizard so the client isn't stranded", async () => {
+    mockMaybeSingle.mockResolvedValue({
+      data: null,
+      error: { message: "permission denied for table hospitality_riders" },
+    });
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const user = userEvent.setup();
+
+    renderDiscoverClient();
+
+    await user.click(screen.getByText("select-speaker-1"));
+    await user.click(await screen.findByText("book-speaker-1"));
+
+    expect(await screen.findByText("submit-booking")).toBeInTheDocument();
+    expect(consoleErrorSpy).toHaveBeenCalled();
+
+    consoleErrorSpy.mockRestore();
+  });
+});
+
 describe("DiscoverClient / handleSubmitBooking", () => {
   beforeEach(() => {
     mockPush.mockClear();
     vi.mocked(createBooking).mockReset();
+    mockMaybeSingle.mockReset().mockResolvedValue({ data: null, error: null });
+    mockReviewsOrder.mockReset().mockResolvedValue({ data: [], error: null });
   });
 
   it("redirects to the new booking's detail page on success instead of just closing the modal", async () => {

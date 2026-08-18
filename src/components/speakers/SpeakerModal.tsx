@@ -18,9 +18,10 @@ interface SpeakerModalProps {
   reviews: Review[];
   onClose: () => void;
   onBook: (speaker: SpeakerProfile) => void;
+  bookingLoading?: boolean;
 }
 
-export function SpeakerModal({ speaker, reviews, onClose, onBook }: SpeakerModalProps) {
+export function SpeakerModal({ speaker, reviews, onClose, onBook, bookingLoading = false }: SpeakerModalProps) {
   const [tab, setTab] = useState<Tab>("profile");
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
@@ -286,7 +287,12 @@ export function SpeakerModal({ speaker, reviews, onClose, onBook }: SpeakerModal
                 Submitting a booking request is free. The speaker will review your event details and respond within 48 hours.
                 Chat and hospitality coordination unlock once the booking is confirmed.
               </p>
-              <Button variant="gold" className="w-full" onClick={() => onBook(speaker)}>
+              <Button
+                variant="gold"
+                className="w-full"
+                loading={bookingLoading}
+                onClick={() => onBook(speaker)}
+              >
                 Request Booking
               </Button>
             </div>

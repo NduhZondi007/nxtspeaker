@@ -1,42 +1,84 @@
 -- ============================================================
 -- NxtSpeaker — Seed Data
--- Run AFTER schema.sql
--- Note: Auth users must be created via Supabase Dashboard or Auth API first.
--- Replace the UUIDs below with real auth.users UUIDs after creation.
+-- Run AFTER schema.sql. Idempotent — safe to re-run (every INSERT below
+-- either upserts or is guarded so a second run doesn't error or duplicate
+-- rows), since Supabase preview branches re-run this on every push.
 -- ============================================================
 
 -- ============================================================
+-- STEP 0: Insert matching auth.users rows
+-- profiles.id has a foreign key to auth.users.id. A fresh database (e.g.
+-- every Supabase preview branch, which does not inherit auth.users data)
+-- fails STEP 1 below with a foreign key violation unless these exist
+-- first. These are inert seed rows only — nobody signs in as them, so
+-- encrypted_password is a throwaway placeholder, not a real credential.
+--
+-- raw_user_meta_data intentionally omits `role` so the on_auth_user_created
+-- trigger (handle_new_user) creates each profiles row with the default
+-- 'CLIENT' role. STEP 1 below then promotes speakers to role SPEAKER via
+-- UPDATE, not INSERT — on_speaker_profile_created only fires AFTER INSERT
+-- ON profiles, so it never re-fires here, avoiding a second, junk
+-- speaker_profiles/hospitality_riders pair per speaker on top of the
+-- curated ones this file inserts explicitly in STEP 2/3.
+-- ============================================================
+
+INSERT INTO auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at, confirmation_token, email_change,
+  email_change_token_new, recovery_token
+) VALUES
+  ('00000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'naledi@nxtspeaker.co.za', 'seed-data-not-a-real-password-hash', NOW(), '{}', '{}', NOW(), NOW(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'sipho@nxtspeaker.co.za', 'seed-data-not-a-real-password-hash', NOW(), '{}', '{}', NOW(), NOW(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'zanele@nxtspeaker.co.za', 'seed-data-not-a-real-password-hash', NOW(), '{}', '{}', NOW(), NOW(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'marcus@nxtspeaker.co.za', 'seed-data-not-a-real-password-hash', NOW(), '{}', '{}', NOW(), NOW(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '11111111-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'amara@nxtspeaker.co.za', 'seed-data-not-a-real-password-hash', NOW(), '{}', '{}', NOW(), NOW(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '22222222-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'nomsa@discovery.co.za', 'seed-data-not-a-real-password-hash', NOW(), '{}', '{}', NOW(), NOW(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '22222222-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'ruan@standardbank.co.za', 'seed-data-not-a-real-password-hash', NOW(), '{}', '{}', NOW(), NOW(), '', '', '', '')
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================
 -- STEP 1: Insert profiles for speakers
--- (These UUIDs must match auth.users IDs — replace after creating users)
+-- ON CONFLICT DO UPDATE because STEP 0's auth.users insert already fired
+-- on_auth_user_created, which created a minimal 'CLIENT' row for each id
+-- above — this enriches those stubs into the full seed data (and, for
+-- speakers, promotes role to SPEAKER).
 -- ============================================================
 
 -- Speaker 1: Naledi Dlamini
 INSERT INTO profiles (id, role, full_name, email, phone, company) VALUES
-  ('11111111-0000-0000-0000-000000000001', 'SPEAKER', 'Naledi Dlamini', 'naledi@nxtspeaker.co.za', '+27 82 111 0001', NULL);
+  ('11111111-0000-0000-0000-000000000001', 'SPEAKER', 'Naledi Dlamini', 'naledi@nxtspeaker.co.za', '+27 82 111 0001', NULL)
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name, email = EXCLUDED.email, phone = EXCLUDED.phone, company = EXCLUDED.company;
 
 -- Speaker 2: Dr. Sipho Ndlovu
 INSERT INTO profiles (id, role, full_name, email, phone, company) VALUES
-  ('11111111-0000-0000-0000-000000000002', 'SPEAKER', 'Dr. Sipho Ndlovu', 'sipho@nxtspeaker.co.za', '+27 82 111 0002', NULL);
+  ('11111111-0000-0000-0000-000000000002', 'SPEAKER', 'Dr. Sipho Ndlovu', 'sipho@nxtspeaker.co.za', '+27 82 111 0002', NULL)
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name, email = EXCLUDED.email, phone = EXCLUDED.phone, company = EXCLUDED.company;
 
 -- Speaker 3: Zanele Mokoena
 INSERT INTO profiles (id, role, full_name, email, phone, company) VALUES
-  ('11111111-0000-0000-0000-000000000003', 'SPEAKER', 'Zanele Mokoena', 'zanele@nxtspeaker.co.za', '+27 82 111 0003', NULL);
+  ('11111111-0000-0000-0000-000000000003', 'SPEAKER', 'Zanele Mokoena', 'zanele@nxtspeaker.co.za', '+27 82 111 0003', NULL)
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name, email = EXCLUDED.email, phone = EXCLUDED.phone, company = EXCLUDED.company;
 
 -- Speaker 4: Marcus van der Berg
 INSERT INTO profiles (id, role, full_name, email, phone, company) VALUES
-  ('11111111-0000-0000-0000-000000000004', 'SPEAKER', 'Marcus van der Berg', 'marcus@nxtspeaker.co.za', '+27 82 111 0004', NULL);
+  ('11111111-0000-0000-0000-000000000004', 'SPEAKER', 'Marcus van der Berg', 'marcus@nxtspeaker.co.za', '+27 82 111 0004', NULL)
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name, email = EXCLUDED.email, phone = EXCLUDED.phone, company = EXCLUDED.company;
 
 -- Speaker 5: Dr. Amara Osei
 INSERT INTO profiles (id, role, full_name, email, phone, company) VALUES
-  ('11111111-0000-0000-0000-000000000005', 'SPEAKER', 'Dr. Amara Osei', 'amara@nxtspeaker.co.za', '+27 82 111 0005', NULL);
+  ('11111111-0000-0000-0000-000000000005', 'SPEAKER', 'Dr. Amara Osei', 'amara@nxtspeaker.co.za', '+27 82 111 0005', NULL)
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name, email = EXCLUDED.email, phone = EXCLUDED.phone, company = EXCLUDED.company;
 
 -- Client 1: Nomsa Khumalo
 INSERT INTO profiles (id, role, full_name, email, phone, company) VALUES
-  ('22222222-0000-0000-0000-000000000001', 'CLIENT', 'Nomsa Khumalo', 'nomsa@discovery.co.za', '+27 83 222 0001', 'Discovery Holdings');
+  ('22222222-0000-0000-0000-000000000001', 'CLIENT', 'Nomsa Khumalo', 'nomsa@discovery.co.za', '+27 83 222 0001', 'Discovery Holdings')
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name, email = EXCLUDED.email, phone = EXCLUDED.phone, company = EXCLUDED.company;
 
 -- Client 2: Ruan Steyn
 INSERT INTO profiles (id, role, full_name, email, phone, company) VALUES
-  ('22222222-0000-0000-0000-000000000002', 'CLIENT', 'Ruan Steyn', 'ruan@standardbank.co.za', '+27 83 222 0002', 'Standard Bank');
+  ('22222222-0000-0000-0000-000000000002', 'CLIENT', 'Ruan Steyn', 'ruan@standardbank.co.za', '+27 83 222 0002', 'Standard Bank')
+  ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role, full_name = EXCLUDED.full_name, email = EXCLUDED.email, phone = EXCLUDED.phone, company = EXCLUDED.company;
 
 -- ============================================================
 -- STEP 2: Insert speaker_profiles
@@ -132,7 +174,8 @@ INSERT INTO speaker_profiles (id, user_id, title, bio, expertise, languages, loc
   4.89,
   38,
   'ACTIVE'
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
 -- STEP 3: Insert hospitality_riders (varied preferences)
@@ -151,7 +194,8 @@ INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_
   TRUE, TRUE,
   TRUE, TRUE, 'five_star',
   'Fresh flowers (no lilies). Rooibos tea available. Printed speaker notes if possible.'
-);
+)
+ON CONFLICT (speaker_id) DO NOTHING;
 
 -- Dr. Sipho: tech-forward, minimal food requirements
 INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_room_temp, dietary_restrictions, dietary_notes, meal_required, meal_timing, green_room_required, green_room_notes, av_requirements, presentation_clicker, confidence_monitor, flights_required, accommodation_required, accommodation_standard, additional_requests) VALUES
@@ -166,7 +210,8 @@ INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_
   TRUE, TRUE,
   TRUE, TRUE, 'five_star',
   'Dedicated tech support person on standby during presentation. Backup laptop connection available.'
-);
+)
+ON CONFLICT (speaker_id) DO NOTHING;
 
 -- Zanele: plant-based, local travel
 INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_room_temp, dietary_restrictions, dietary_notes, meal_required, meal_timing, green_room_required, green_room_notes, av_requirements, presentation_clicker, confidence_monitor, flights_required, accommodation_required, accommodation_standard, additional_requests) VALUES
@@ -181,7 +226,8 @@ INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_
   TRUE, FALSE,
   FALSE, FALSE, 'four_star',
   'Sustainable/eco-friendly catering preferred. Recyclable cups and cutlery only.'
-);
+)
+ON CONFLICT (speaker_id) DO NOTHING;
 
 -- Marcus: casual, flexible
 INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_room_temp, dietary_restrictions, dietary_notes, meal_required, meal_timing, green_room_required, green_room_notes, av_requirements, presentation_clicker, confidence_monitor, flights_required, accommodation_required, accommodation_standard, additional_requests) VALUES
@@ -196,7 +242,8 @@ INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_
   TRUE, FALSE,
   FALSE, FALSE, 'three_star',
   'Energy! Good venue acoustics are more important than green room setup.'
-);
+)
+ON CONFLICT (speaker_id) DO NOTHING;
 
 -- Dr. Amara: wellness-focused
 INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_room_temp, dietary_restrictions, dietary_notes, meal_required, meal_timing, green_room_required, green_room_notes, av_requirements, presentation_clicker, confidence_monitor, flights_required, accommodation_required, accommodation_standard, additional_requests) VALUES
@@ -211,7 +258,8 @@ INSERT INTO hospitality_riders (speaker_id, water_still, water_sparkling, water_
   TRUE, TRUE,
   TRUE, TRUE, 'four_star',
   'Room temperature kept comfortable (not too cold). Herbal teas available.'
-);
+)
+ON CONFLICT (speaker_id) DO NOTHING;
 
 -- ============================================================
 -- STEP 4: Insert bookings
@@ -274,14 +322,18 @@ INSERT INTO bookings (id, client_id, speaker_id, event_name, audience_demographi
   TRUE,
   NOW() - INTERVAL '30 days',
   'Hybrid event. 100 in-person, 100 virtual via Teams. Recording approved.'
-);
+)
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
 -- STEP 5: Insert reviews (for completed bookings)
 -- ============================================================
 
-INSERT INTO reviews (booking_id, reviewer_id, speaker_id, rating, headline, body, verified) VALUES
-(
+-- reviews.id has no natural key in this file's columns (it's a random
+-- default), so idempotency here uses the same WHERE NOT EXISTS guard as
+-- the second review insert below, keyed on the (unique-per-seed) booking_id.
+INSERT INTO reviews (booking_id, reviewer_id, speaker_id, rating, headline, body, verified)
+SELECT
   'bbbbbbbb-0000-0000-0000-000000000003',
   '22222222-0000-0000-0000-000000000002',
   'aaaaaaaa-0000-0000-0000-000000000005',
@@ -289,6 +341,8 @@ INSERT INTO reviews (booking_id, reviewer_id, speaker_id, rating, headline, body
   'Transformative session — our teams are still talking about it',
   'Dr. Amara delivered an extraordinary keynote that connected neuroscience directly to our leadership challenges. The practical tools she shared for managing cognitive load under pressure have already been adopted by three of our regional teams. An absolute 5-star experience from engagement to execution.',
   TRUE
+WHERE NOT EXISTS (
+  SELECT 1 FROM reviews WHERE booking_id = 'bbbbbbbb-0000-0000-0000-000000000003'
 );
 
 -- Additional reviews for seed speakers (from past bookings not in this seed set)

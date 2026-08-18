@@ -3,6 +3,109 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-08-18 · infrastructure · Supabase Preview branching failing on every PR
+
+**Type:** infrastructure
+**Affected:** `supabase/seed.sql`
+**Severity:** medium
+
+**What happened:**
+Discovered while investigating an unrelated PR: the "Supabase Preview" GitHub
+check failed with `insert or update on table "profiles" violates foreign key
+constraint "profiles_id_fkey" (SQLSTATE 23503)`. Not caused by that PR's
+actual changes — cross-checked and this check had only ever shown
+`"skipped"` on prior PRs ("This git branch is not associated with any
+Supabase Branch"), meaning preview branching had never actually executed
+successfully on this repo before.
+
+**Root cause:**
+`supabase/seed.sql` inserts demo `profiles` rows with hardcoded placeholder
+UUIDs (its own header comment admitted: "Auth users must be created via
+Supabase Dashboard or Auth API first"). `profiles.id` has a foreign key to
+`auth.users.id`; a fresh preview branch doesn't inherit `auth.users` data,
+so the very first seed insert fails immediately.
+
+**Fix:**
+Added a STEP 0 to `seed.sql` inserting matching `auth.users` rows before the
+`profiles` inserts, satisfying the FK. Deliberately omits `role` from
+`raw_user_meta_data` so the `on_auth_user_created` trigger creates a default
+`'CLIENT'` profiles row; the existing `profiles` inserts then use
+`ON CONFLICT (id) DO UPDATE` (not a fresh `INSERT`) to promote speakers to
+`SPEAKER`, so `on_speaker_profile_created` (`AFTER INSERT ON profiles`)
+never re-fires and creates duplicate junk `speaker_profiles`/
+`hospitality_riders` rows alongside the curated ones the file inserts
+explicitly. Also made the rest of the file idempotent (`ON CONFLICT DO
+NOTHING` / `WHERE NOT EXISTS`) since preview branches re-run the seed on
+every push. Not verified against a real Postgres instance (no Docker in
+this environment) — verified by hand against the actual trigger/constraint
+definitions in `20260309221803_new-migration.sql`; the next PR push's
+"Supabase Preview" check is the real validation.
+
+**Prevention:**
+Any table with a foreign key to `auth.users.id` needs matching `auth.users`
+rows in the seed file, in insert order, for preview/local branches to seed
+successfully — `auth.users` is never auto-populated by CLI tooling for
+non-production databases. When re-touching `seed.sql`, keep every insert
+idempotent (`ON CONFLICT` or `WHERE NOT EXISTS`); Supabase branching re-runs
+this file on every push to a PR, not just once.
+
+## 2026-08-18 · bug · "Request Booking" drops clients back to the speaker grid on their first booking with a speaker
+
+**Type:** bug
+**Affected:** `src/app/client/discover/DiscoverClient.tsx`, `src/components/speakers/SpeakerModal.tsx`, `hospitality_riders` RLS policy
+**Severity:** high
+
+**What happened:**
+After `af87b36` (which fixed the *post-submit* redirect) merged to `main`,
+the user reported the exact same symptom persisting: pressing "Request
+Booking" on a speaker's profile modal dropped straight back to the bare
+speaker grid with zero feedback — no toast, success or error. Repro details
+(production URL, fresh incognito, no toast at all) ruled out a stale bundle
+and ruled out `handleSubmitBooking` (which always shows a toast on either
+path) — pointing to an earlier step in the flow that `af87b36` never touched.
+
+**Root cause:**
+Two compounding bugs in `handleBook()`, fired the instant "Request Booking"
+is clicked (before the multi-step booking wizard is even shown):
+1. `setSelectedSpeaker(null)` ran synchronously *before* `await`ing the
+   `hospitality_riders` fetch, closing the profile modal immediately with no
+   loading state — the user stared at the bare grid until the fetch resolved
+   and the booking wizard finally opened.
+2. The only RLS SELECT policy on `hospitality_riders` available to a client
+   required a `bookings` row for that exact client+speaker pair to already
+   exist — circular, since the rider needs to be reviewed *during* booking
+   creation. On a client's first-ever attempt to book a given speaker, RLS
+   blocked the read, `.single()` turned the resulting 0 rows into a
+   PostgREST error, and `const { data: rider } = await ...` discarded that
+   error silently — so `BookingForm` fell back to "No hospitality rider has
+   been configured," even when the speaker had real requirements set. Any
+   client re-booking a speaker they'd already booked once satisfied the old
+   policy, which is why this wasn't caught by repeat-tester testing.
+
+**Fix:**
+`handleBook()` now keeps the profile modal open (with a loading spinner on
+the "Request Booking" button, via a new `bookingLoading` prop reusing
+`Button`'s existing `loading` state) until the fetch resolves and the
+booking wizard is ready to replace it — `setBookingRider`/`setBookingSpeaker`/
+`setSelectedSpeaker(null)` now happen together in one batch. Swapped
+`.single()` for `.maybeSingle()` and log (rather than discard) a real fetch
+error. New migration `20260818190000_hospitality-riders-preview-select.sql`
+adds an RLS policy letting any authenticated user view an active speaker's
+`hospitality_riders` row (mirroring the existing `speaker_profiles`
+"Anyone authenticated can view active speakers" policy) and drops the old
+circular one.
+
+**Prevention:**
+Added `describe("DiscoverClient / handleBook")` in
+`src/__tests__/app/client/discover/DiscoverClient.test.tsx` — asserts a
+loading indicator is visible while the fetch is in flight (catches the
+"drops to blank grid" regression directly), that the wizard opens on both
+success and fetch-error, and that a fetch error is surfaced via
+`console.error` rather than silently discarded. General lesson (recurring
+theme across `c263003`, `8087258`, and this bug): never destructure `data`
+out of a Supabase query without also capturing `error` — RLS blocks are
+indistinguishable from "no rows" unless the error is checked.
+
 ## 2026-08-17 · config · Every Vercel Preview deployment failing to build since 2026-08-11
 
 **Type:** config
