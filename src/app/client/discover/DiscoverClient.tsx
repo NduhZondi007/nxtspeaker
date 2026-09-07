@@ -14,7 +14,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/components/layout/AuthProvider";
 import { createBooking } from "@/app/actions/bookings";
 import { getSpeakers, DEFAULT_SPEAKER_FILTERS } from "@/lib/data/speakers";
-import type { SpeakerProfile, Review, HospitalityRider } from "@/lib/types/database";
+import type { SpeakerProfile, Review, HospitalityRider, Profile } from "@/lib/types/database";
 import type { BookingFormData } from "@/components/bookings/BookingForm";
 
 interface DiscoverClientProps {
@@ -31,6 +31,9 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
   const [speakerReviews, setSpeakerReviews] = useState<Review[]>([]);
   const [bookingSpeaker, setBookingSpeaker] = useState<SpeakerProfile | null>(null);
   const [bookingRider, setBookingRider] = useState<HospitalityRider | null>(null);
+  // Fallback for when AuthProvider's client-side profile fetch came back empty
+  // — see handleBook. Only supplies the name on the hospitality agreement.
+  const [bookingClientProfile, setBookingClientProfile] = useState<Profile | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [reviewCache, setReviewCache] = useState<Map<string, Review[]>>(new Map());
   const { profile } = useAuth();
@@ -113,12 +116,35 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
       // bookingLoading stuck true forever with the button spinning and the
       // wizard never opening. Same fallback as the error-return path above.
       console.error("[discover] hospitality_riders fetch threw:", err);
-    } finally {
-      setBookingRider(rider);
-      setBookingSpeaker(speaker);
-      setSelectedSpeaker(null);
-      setBookingLoading(false);
     }
+
+    // AuthProvider swallows the error from its own profiles fetch, so `profile`
+    // can be null for a signed-in client with no trace of why. Re-fetch here so
+    // the hospitality agreement still carries the client's real name; if this
+    // fails too the wizard still opens, it just says "the client".
+    if (!profile) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: freshProfile, error: profileError } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (profileError) {
+            console.error("[discover] profile re-fetch failed:", profileError);
+          }
+          setBookingClientProfile((freshProfile as Profile) ?? null);
+        }
+      } catch (err) {
+        console.error("[discover] profile re-fetch threw:", err);
+      }
+    }
+
+    setBookingRider(rider);
+    setBookingSpeaker(speaker);
+    setSelectedSpeaker(null);
+    setBookingLoading(false);
   }
 
   async function handleSubmitBooking(formData: BookingFormData) {
@@ -194,12 +220,18 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
         bookingLoading={bookingLoading}
       />
 
-      {bookingSpeaker && profile && (
+      {/* Gated on bookingSpeaker alone. This used to also require `profile`
+          from useAuth(), while handleBook closed the speaker card
+          unconditionally — so whenever the client-side profile fetch came back
+          empty, the card closed and *nothing* opened in its place: no wizard,
+          no error, no way forward. The profile is only needed to print a name
+          on the hospitality agreement, which has its own fallback. */}
+      {bookingSpeaker && (
         <Modal open={!!bookingSpeaker} onClose={() => setBookingSpeaker(null)} maxWidth="2xl">
           <BookingForm
             speaker={bookingSpeaker}
             rider={bookingRider}
-            clientProfile={profile}
+            clientProfile={profile ?? bookingClientProfile}
             onSubmit={handleSubmitBooking}
             onCancel={() => setBookingSpeaker(null)}
           />

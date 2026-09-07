@@ -8,9 +8,15 @@ import type { SpeakerProfile } from "@/lib/types/database";
 
 const mockPush = vi.fn();
 
-const { mockMaybeSingle, mockReviewsOrder } = vi.hoisted(() => ({
+const { mockMaybeSingle, mockReviewsOrder, mockGetUser, authState } = vi.hoisted(() => ({
   mockMaybeSingle: vi.fn(),
   mockReviewsOrder: vi.fn(),
+  mockGetUser: vi.fn(),
+  // Mutable so a test can simulate AuthProvider's profile fetch coming back
+  // empty, which is the condition that used to strand the booking flow.
+  authState: {
+    profile: { id: "client-1", full_name: "Test Client", role: "CLIENT" } as unknown,
+  },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -22,13 +28,12 @@ vi.mock("@/app/actions/bookings", () => ({
 }));
 
 vi.mock("@/components/layout/AuthProvider", () => ({
-  useAuth: () => ({
-    profile: { id: "client-1", full_name: "Test Client", role: "CLIENT" },
-  }),
+  useAuth: () => ({ profile: authState.profile }),
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
+    auth: { getUser: () => mockGetUser() },
     from: () => ({
       select: () => ({
         eq: () => ({
@@ -108,6 +113,27 @@ describe("DiscoverClient / handleBook", () => {
   beforeEach(() => {
     mockMaybeSingle.mockReset();
     mockReviewsOrder.mockReset().mockResolvedValue({ data: [], error: null });
+    mockGetUser.mockReset().mockResolvedValue({ data: { user: { id: "client-1" } } });
+    authState.profile = { id: "client-1", full_name: "Test Client", role: "CLIENT" };
+  });
+
+  it("opens the booking wizard even when the client-side profile is unavailable — never closes the speaker card onto an empty screen", async () => {
+    // AuthProvider swallows the error from its own profiles fetch, so a signed-in
+    // client can legitimately end up with profile === null. The booking modal
+    // used to be gated on it while handleBook closed the speaker card
+    // regardless, so the card vanished and nothing replaced it.
+    authState.profile = null;
+    mockMaybeSingle.mockResolvedValue({ data: null, error: null });
+    const user = userEvent.setup();
+
+    renderDiscoverClient();
+
+    await user.click(screen.getByText("select-speaker-1"));
+    await user.click(await screen.findByText("book-speaker-1"));
+
+    // The wizard must be on screen, not a blank grid.
+    expect(await screen.findByText("submit-booking")).toBeInTheDocument();
+    expect(screen.queryByText("book-speaker-1")).not.toBeInTheDocument();
   });
 
   it("keeps the profile modal visible with a loading indicator while the rider fetch is in flight — never drops to the bare grid with no feedback", async () => {

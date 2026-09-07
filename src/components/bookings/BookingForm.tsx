@@ -12,7 +12,12 @@ import type { SpeakerProfile, HospitalityRider, Profile, EventFormat } from "@/l
 interface BookingFormProps {
   speaker: SpeakerProfile;
   rider: HospitalityRider | null;
-  clientProfile: Profile;
+  /**
+   * Only used to print the client's name on the hospitality agreement, which
+   * already falls back to "the client". Nullable so a missing/slow client-side
+   * profile can never block the whole booking wizard from opening.
+   */
+  clientProfile: Profile | null;
   onSubmit: (data: BookingFormData) => Promise<void>;
   onCancel: () => void;
 }
@@ -291,7 +296,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
             <HospitalityRiderView
               rider={rider}
               speakerName={speakerName}
-              clientName={clientProfile.full_name}
+              clientName={clientProfile?.full_name}
               companyName={data.associated_company}
               eventName={data.event_name}
               agreed={data.hospitality_rider_agreed}

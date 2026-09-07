@@ -3,6 +3,73 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-09-07 · bug · "Request Booking" closed the speaker card and opened nothing
+
+**Type:** bug
+**Affected:** `src/app/client/discover/DiscoverClient.tsx`, `supabase/migrations/20260907182321`
+**Severity:** critical
+
+**What happened:**
+Reported by the user: pressing **Request Booking** dismissed the speaker card
+and then nothing happened — no booking wizard, no error, no toast. The client
+was returned to the speaker grid with no way to complete a booking. Booking, the
+platform's core action, was unreachable from the UI.
+
+**Root cause — two faults, one visible symptom:**
+
+1. *The trigger (a regression introduced the same day).* Migration
+   `20260907182321` revoked `EXECUTE` on `shares_booking_with()` from `anon`,
+   reasoning that anonymous callers have no use for it. But that function is
+   called from the `profiles` RLS policy added in `20260907182050`:
+
+   ```sql
+   USING (auth.uid() IS NOT NULL AND public.shares_booking_with(profiles.id))
+   ```
+
+   Postgres does **not** guarantee left-to-right short-circuiting of `AND` in a
+   policy expression — the planner may evaluate the function first. For an anon
+   caller that raises `permission denied for function shares_booking_with`,
+   which fails the **entire SELECT** on `profiles` instead of returning zero
+   rows. So any `profiles` read issued before the JWT was attached went from
+   "returns nothing" to "hard error".
+
+2. *The amplifier (pre-existing).* `AuthProvider` discards the error from its own
+   profiles fetch (`const { data: profile }` — no `error` destructured), so the
+   failure was invisible and `profile` silently became `null`. The booking modal
+   was gated on `{bookingSpeaker && profile && ...}` while `handleBook` closed
+   the speaker card **unconditionally**. A null profile therefore closed the card
+   and rendered nothing in its place — a silent dead end.
+
+Neither fault alone is enough: the revoke only produced a null profile, and the
+gate only mattered when the profile was null.
+
+**Why the original verification missed it:**
+Every check run after applying `20260907182321` impersonated an *authenticated*
+user via `request.jwt.claims`. The `anon` path was never exercised, and that is
+the only role the revoke actually changed.
+
+**Fix:**
+- `20260907190000_fix-shares-booking-with-anon-grant.sql`: grants `EXECUTE` back
+  to `anon` (safe — the body compares against `auth.uid()`, which is NULL for
+  anon, so it can only ever return false) and short-circuits inside the function
+  so it never touches a table for a caller who cannot match.
+- `DiscoverClient` renders the wizard on `bookingSpeaker` alone. The profile is
+  only needed to print a name on the hospitality agreement, which already falls
+  back to "the client"; `BookingForm.clientProfile` is now nullable. `handleBook`
+  additionally re-fetches the profile as a best effort so the real name still
+  appears.
+
+**Prevention:**
+- Regression test in `DiscoverClient.test.tsx` asserts the wizard opens with
+  `profile === null`; verified to fail against the old gate.
+- Any function referenced from an RLS policy must be exercised as **both** `anon`
+  and `authenticated` before shipping — an RLS `USING` clause cannot be assumed to
+  short-circuit around a permission error.
+- `AuthProvider` still swallows its fetch error; surfacing it is the obvious
+  follow-up so the next failure of this class is not invisible.
+
+---
+
 ## 2026-09-07 · bug · Booking creation was failing in production on a duplicate booking_number
 
 **Type:** bug

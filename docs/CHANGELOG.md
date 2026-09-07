@@ -49,6 +49,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
   and MIME limits, previously browser-only, are now declared on the buckets.
 
 ### Fixed
+- **"Request Booking" closed the speaker card and opened nothing** — booking was
+  unreachable from the UI. Two faults combined: `20260907182321` revoked
+  `EXECUTE` on `shares_booking_with()` from `anon`, but that function is called
+  from a `profiles` RLS policy and Postgres does not guarantee `AND`
+  short-circuiting in a policy, so anonymous/pre-JWT `profiles` reads went from
+  returning zero rows to hard-erroring; `AuthProvider` swallows that error, so
+  `profile` silently became `null`; and the booking modal was gated on that
+  profile while `handleBook` closed the speaker card unconditionally. The grant
+  is restored (safe — the function can only return false for anon) and the
+  wizard no longer depends on the client-side profile. Regression test added.
 - **Booking creation was failing in production on a duplicate `booking_number`**
   — found while verifying the RLS migration against the live database, and
   pre-existing rather than caused by it. `20260524000001` swapped the racy
