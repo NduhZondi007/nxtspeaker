@@ -8,7 +8,87 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- **Registration accepted any role, including ADMIN** — `registerUser` read
+  `role` straight off the submitted form and wrote it to both
+  `app_metadata.role` and `profiles.role`, so a crafted POST self-provisioned
+  a platform administrator. The whole payload is now validated with Zod, with
+  `role` restricted to SPEAKER/CLIENT. See `docs/ERRORS.md` (2026-09-07).
+- **Any authenticated user could promote themselves to ADMIN** — every UPDATE
+  policy in the schema was written with `USING` and no `WITH CHECK`, so a
+  direct PATCH to `/rest/v1/profiles` with the anon key could set
+  `role = ADMIN`, which `assertAdmin()` then trusts to unlock the whole
+  service-role-backed admin portal. New `BEFORE UPDATE` triggers pin `role`,
+  `base_role` and `id` on `profiles`, the commercial columns and status
+  transitions on `bookings`, and `status`/`avg_rating`/`total_events` on
+  `speaker_profiles` (migration `20260907120000_rls-integrity-fixes.sql`).
+- **Booking status and fee were rewritable by either party** — a client could
+  PATCH their own booking to CONFIRMED or COMPLETED, or change
+  `quoted_fee_zar`. `updateBookingStatus` also accepted any string and any
+  transition. The state machine is now explicit
+  (`canSpeakerTransition` / `canClientCancel`) and enforced in both the action
+  and the database.
+- **Reviews could be attributed to any speaker** — `submitReview` inserted the
+  client-supplied `speakerId`, and the RLS policy never compared it to the
+  booking, so a verified 1-star review could be posted against any speaker's
+  public rating. The speaker is now read off the booking, the policy requires
+  the two to match, and ratings are validated as 1–5.
+- **PostgREST filter injection in admin user search** — the search term was
+  interpolated raw into `.or()`, letting `x,role.eq.ADMIN` rewrite the query.
+  Terms are now wildcard-escaped and quoted.
+- **Storage URL validation was a substring check** — it accepted an arbitrary
+  external host containing the same path segment. URLs are parsed and pinned to
+  this project's Supabase origin, bucket and the caller's folder; the file-size
+  and MIME limits, previously browser-only, are now declared on the buckets.
+
 ### Fixed
+- **Speakers never saw who booked them** — no `profiles` SELECT policy let a
+  speaker read a client's row, so the bookings list, booking detail, earnings
+  history and chat all rendered the fallbacks "Client" and "Participant". Added
+  a booking-counterparty policy via a `SECURITY DEFINER` helper (an inline
+  subquery would re-create the 42P17 recursion fixed in `20260622194851`).
+- **Promoting a user to admin did not grant admin access** — `promoteToAdmin`
+  updated `profiles.role` only, while RLS authorises against the
+  `app_metadata.role` JWT claim, so the new admin could open the portal but
+  `/admin/users` listed only themselves. Role changes now sync the claim, and
+  roll back the table write if the claim write fails.
+- **Fees rendered as "R 1 000 000"** — `toLocaleString("en-ZA")` groups with a
+  non-breaking space whose exact character depends on the engine's ICU data,
+  which also risks a hydration mismatch. Grouping is now explicit (three
+  pre-existing failing tests now pass), numeric strings are coerced, and
+  null/NaN renders `R 0` rather than `R NaN`.
+- **Failed chat messages were silently discarded** — the `"use server"`
+  wrappers dropped `sendMessage`'s `{ error }`, so a rejected send cleared the
+  textarea with no toast and nothing in the thread. The error now reaches
+  `ChatInput`, which keeps the text and raises a toast. Chat on a CANCELLED
+  booking, which the UI showed as locked but RLS still accepted, is now closed.
+- **Client dashboard under-reported completed events and total spend** — both
+  were computed from the `.limit(5)` recent-bookings query. Stats now come from
+  an unlimited query, "Speakers Explored" is a real count, and the hardcoded
+  "Good morning" is time-based (SAST).
+- **Modal could not be dismissed by clicking outside** — the overlay compared
+  the click target against its own ref, but the backdrop covers it edge to
+  edge, so the comparison never matched.
+- **Empty-string UUIDs sent to `uuid` columns** in five pages — Postgres
+  rejects these (22P02) rather than matching no rows, and the error was
+  swallowed and shown as "no bookings".
+- **Speaker profile page span an infinite skeleton** when the profile fetch
+  failed or returned nothing; it now distinguishes loading from failed.
+- **Removing a portfolio photo could leave a dead URL** in `photo_urls` while
+  deleting the storage object, leaving a broken image on the public profile.
+- **`total_events` counted reviews, not events** — a speaker with twenty
+  completed events and two reviews was shown as "2 events". It now counts
+  COMPLETED bookings, and both stats recompute on review update/delete and on
+  booking completion.
+- **`adminUpdateBookingStatus` erased the cancellation reason** on every status
+  change.
+- **Admins were routed to the client dashboard** by the auth callback, and
+  `/admin` was missing from the middleware's protected prefixes.
+- **Chat thread went stale between bookings** — `useRealtimeMessages` seeded
+  from `initialMessages` on first render only.
+- **Booking form cleared every validation error on any keystroke**, and had no
+  client-side check for past dates, reversed date ranges or out-of-range
+  durations — all of which the server rejects.
 - **Submitting a booking silently failed with no toast if `createBooking`
   threw** — `handleSubmitBooking` only handled a *resolved* `{ error }`,
   the same class of gap already fixed in `handleBook` this same day.
@@ -59,6 +139,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `docs/ERRORS.md` (2026-08-17).
 
 ### Added
+- `src/lib/utils/booking.ts`: the booking state machine
+  (`BOOKING_STATUSES`, `isBookingStatus`, `canSpeakerTransition`,
+  `canClientCancel`) and `validateBookingDates`, shared by the Server Action,
+  the REST route and the booking wizard so the three cannot drift.
+- `src/lib/utils/storage.ts` and `src/lib/utils/postgrest.ts`: owned-storage-URL
+  parsing and PostgREST filter escaping.
+- 51 tests covering the above, plus Server-Action-level tests for
+  `createBooking`, `updateBookingStatus`, `cancelBooking` and `submitReview`.
 - **Live booking-status feedback for organisers** — added
   `useRealtimeBookingStatus` (`src/lib/hooks/useRealtimeBookingStatus.ts`), a
   Supabase Realtime subscription on `bookings` `UPDATE` events filtered by

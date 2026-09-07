@@ -3,6 +3,332 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-09-07 · security · Registration accepted any role, including ADMIN
+
+**Type:** security
+**Affected:** `src/app/actions/auth.ts` (`registerUser`)
+**Severity:** critical
+
+**What happened:**
+Found during a full-codebase defect audit. `registerUser` read the role
+straight off the submitted form — `formData.get("role") as "SPEAKER" | "CLIENT"` —
+and wrote it to both `app_metadata.role` (via the service-role admin API) and
+`profiles.role`. A crafted POST to the register action with `role=ADMIN`
+therefore created a fully-provisioned platform administrator, with no existing
+admin involved. The `as` cast that appeared to constrain it is a TypeScript
+annotation and is erased at build time.
+
+**Root cause:**
+Type annotations were mistaken for runtime validation on a trust boundary.
+Server Action arguments and `FormData` values are untrusted input; nothing in
+the action checked the value before it reached the two places the platform
+reads roles from.
+
+**Fix:**
+Validate the whole registration payload with Zod, with `role` restricted to
+`z.enum(["SPEAKER", "CLIENT"])`. ADMIN is now reachable only through
+`promoteToAdmin`, which itself requires an existing admin. Email, password
+length and field lengths are validated in the same schema; `loginUser` gained
+an equivalent one.
+
+**Prevention:**
+Every Server Action that writes a privileged column now parses its input with
+Zod rather than relying on the parameter type.
+
+---
+
+## 2026-09-07 · security · Any authenticated user could promote themselves to ADMIN
+
+**Type:** security
+**Affected:** `supabase/migrations/*` (profiles RLS), `src/app/actions/admin.ts`
+**Severity:** critical
+
+**What happened:**
+Both UPDATE policies on `profiles` ("Users can update own profile",
+"Admins can update any profile") were written with a `USING` clause and no
+`WITH CHECK`. Postgres then reuses `USING` as the `WITH CHECK`, which answers
+"may this row be updated?" but never "is the *new* row acceptable?". A plain
+`PATCH /rest/v1/profiles?id=eq.<self>` with `{"role":"ADMIN"}` and the public
+anon key satisfied `auth.uid() = id` in both directions and succeeded.
+
+**Root cause:**
+The same missing-`WITH CHECK` pattern across the whole schema. It escalated to
+a full compromise because the two layers disagree about where the role lives:
+RLS reads it from the JWT `app_metadata` claim (service-role-only, so RLS
+itself was not directly bypassed), but `assertAdmin()` authorises the entire
+admin portal off `profiles.role` — and that portal then acts with the
+service-role key.
+
+**Fix:**
+Migration `20260907120000_rls-integrity-fixes.sql` adds a
+`BEFORE UPDATE` trigger on `profiles` that rejects any change to `role`,
+`base_role` or `id` unless the caller is the service role (`auth.uid() IS NULL`)
+or carries the ADMIN JWT claim. Equivalent triggers were added to `bookings`
+and `speaker_profiles`, whose UPDATE policies had the same gap.
+
+**Prevention:**
+Column-level immutability is now enforced by triggers rather than by hoping
+callers go through the Server Actions. Any new UPDATE policy must either carry
+an explicit `WITH CHECK` or be paired with such a trigger.
+
+---
+
+## 2026-09-07 · security · Booking status, fee and parties were writable by either side
+
+**Type:** security
+**Affected:** `supabase/migrations/*` (bookings RLS), `src/app/actions/bookings.ts`
+**Severity:** critical
+
+**What happened:**
+"Clients and speakers can update their bookings" had no `WITH CHECK`, so a
+client could PATCH their own booking to `status = 'CONFIRMED'` or
+`'COMPLETED'`, rewrite `quoted_fee_zar` to any amount, or repoint
+`speaker_id` — none of which goes near the Server Actions that were supposed
+to gate those changes. Separately, `updateBookingStatus(bookingId, status)`
+accepted any string as the status and any transition from any state: a speaker
+could cancel on the client's behalf, mark an event completed before it
+happened, or re-open a declined request.
+
+**Root cause:**
+The booking state machine existed only as an implicit convention in the UI
+(which button renders for which status). Neither the action nor the database
+encoded it.
+
+**Fix:**
+The state machine is now explicit in `src/lib/utils/booking.ts`
+(`isBookingStatus`, `canSpeakerTransition`, `canClientCancel`), enforced in
+`updateBookingStatus`/`cancelBooking`, and enforced again by the
+`enforce_booking_update_rules` trigger, which also pins `booking_number`,
+`client_id`, `speaker_id`, `quoted_fee_zar` and `created_at`, and stops a
+speaker editing the organiser's event brief.
+
+**Prevention:**
+18 unit tests over the transition table plus action-level tests asserting that
+a rejected transition performs no write.
+
+---
+
+## 2026-09-07 · security · A review could be attributed to any speaker
+
+**Type:** security
+**Affected:** `src/app/actions/reviews.ts`, reviews RLS policy
+**Severity:** high
+
+**What happened:**
+`submitReview` verified that the booking was COMPLETED and belonged to the
+caller, then inserted `speaker_id: input.speakerId` — the client's own value.
+The RLS INSERT policy checked the same three things and likewise never
+compared `reviews.speaker_id` to the booking's speaker. A client could
+therefore post a genuine, `verified: true`, 1-star review against any speaker
+on the platform, and the `update_speaker_rating` trigger folded it into that
+speaker's public `avg_rating`. The rating itself was also unvalidated in the
+action.
+
+**Fix:**
+The speaker is read off the booking row and the caller's `speakerId` is
+ignored (kept in the interface only for call-site readability, and documented
+as ignored). Rating is validated as an integer 1–5. The RLS policy now also
+requires `b.speaker_id = reviews.speaker_id`.
+
+**Prevention:**
+Action test asserts that passing a different speaker's id still records the
+booking's speaker.
+
+---
+
+## 2026-09-07 · bug · Speakers never saw who booked them
+
+**Type:** bug
+**Affected:** profiles RLS, `src/app/speaker/**`
+**Severity:** high
+
+**What happened:**
+Every speaker-side surface showed the literal fallback text instead of the
+organiser: the bookings list read "Client — ", the booking detail page showed
+"Client" for the client and company, the earnings history showed "Client", and
+the chat thread labelled every incoming message "Participant".
+
+**Root cause:**
+The three SELECT policies on `profiles` cover your own row, any *active
+speaker's* row, and (for admins) everything. A speaker reading a *client's*
+profile matched none of them, so the embedded `profiles(*)` join silently
+returned NULL and each `?? "Client"` fallback rendered. Nothing errored, which
+is why it looked like intended copy.
+
+**Fix:**
+New policy "Booking counterparties can view each other", scoped to an existing
+`bookings` row so nothing is exposed before a booking exists. The lookup lives
+in a `SECURITY DEFINER` helper (`shares_booking_with`) because `bookings` has a
+policy that queries `profiles` — an inline subquery would have closed the same
+recursion cycle that caused the 42P17 outage fixed in `20260622194851`.
+
+**Prevention:**
+Documented in the migration: any new `profiles` policy that needs to consult
+`bookings` or `speaker_profiles` must go through a definer function.
+
+---
+
+## 2026-09-07 · bug · Promoting a user to admin did not actually grant admin access
+
+**Type:** bug
+**Affected:** `src/app/actions/admin.ts` (`promoteToAdmin`, `revokeAdmin`)
+**Severity:** high
+
+**What happened:**
+A user promoted through the admin UI could open the admin portal but saw
+almost nothing in it — `/admin/users` listed only themselves, and the user
+search in "Add Speaker" returned no one.
+
+**Root cause:**
+`promoteToAdmin` updated `profiles.role` only. Since `20260622194851` every
+admin RLS policy authorises against the `app_metadata.role` JWT claim instead
+of the table (to break an infinite-recursion cycle), so the promoted user's
+queries still ran with ordinary-user visibility. The portal's own guard,
+`assertAdmin()`, reads `profiles.role` — hence "in the portal but blind".
+
+**Fix:**
+`syncRoleClaim()` writes `app_metadata.role` via the service-role admin API
+whenever the table role changes (`promoteToAdmin`, `revokeAdmin`,
+`adminCreateSpeaker`), rolling the table change back if the claim write fails
+so the two sources cannot disagree. Note the claim is baked into the JWT at
+sign-in, so the promoted user must re-authenticate for it to take effect.
+
+**Prevention:**
+The two sources of truth and their relationship are documented at
+`syncRoleClaim`.
+
+---
+
+## 2026-09-07 · bug · Fees rendered as "R 1 000 000", and could differ between server and browser
+
+**Type:** bug
+**Affected:** `src/lib/utils/currency.ts`
+**Severity:** medium
+
+**What happened:**
+Three pre-existing tests in `currency.test.ts` were failing on `main`:
+`formatZAR(1000000)` returned `R 1 000 000`, not the documented `R 1,000,000`.
+
+**Root cause:**
+`toLocaleString("en-ZA")` — the en-ZA CLDR group separator is a (non-breaking)
+space, not a comma. Worse, exactly which character you get depends on the ICU
+data compiled into the running engine, so the server and the browser could
+disagree, which surfaces as a React hydration mismatch on every page that
+renders a fee.
+
+**Fix:**
+Explicit grouping with a regex, no locale data involved. `formatZAR` also now
+coerces numeric strings (Postgres `NUMERIC` can arrive as a string) and returns
+`R 0` for null/NaN instead of `R NaN`.
+
+**Prevention:**
+The five existing tests now pass and pin the format.
+
+---
+
+## 2026-09-07 · bug · Failed chat messages were silently discarded
+
+**Type:** bug
+**Affected:** `src/components/chat/ChatInput.tsx` and the four chat surfaces
+**Severity:** medium
+
+**What happened:**
+If `sendMessage` failed — RLS rejection, chat locked, network error — the
+message vanished: the textarea was cleared, nothing appeared in the thread, and
+no toast was shown.
+
+**Root cause:**
+Each page's `"use server"` wrapper did `await sendMessage(...)` and dropped the
+returned `{ error }` on the floor, so `ChatInput` saw a resolved promise and
+cleared its input unconditionally.
+
+**Fix:**
+The wrappers return the error, `ChatInput.onSend` is typed to resolve with
+`{ error? }`, and the input keeps the user's text and raises an error toast
+when the send fails. `sendMessage` now also returns readable errors ("Chat is
+not available for this booking") instead of a raw policy-violation string, and
+applies the same `canChat` rule the UI uses — RLS alone still accepted messages
+on a CANCELLED booking whose thread the UI showed as locked.
+
+**Prevention:**
+The error-returning contract is in the `ChatInputProps` type, so a wrapper that
+drops the error no longer type-checks as a valid `onSend`.
+
+---
+
+## 2026-09-07 · bug · Client dashboard under-reported completed events and total spend
+
+**Type:** bug
+**Affected:** `src/app/client/dashboard/page.tsx`
+**Severity:** medium
+
+**What happened:**
+"Events Completed" and "Total Spent" were computed from the same query that
+feeds the "Recent Bookings" list — which is `.limit(5)`. Any client with more
+than five bookings saw figures covering only their five most recent ones.
+
+**Fix:**
+A separate unlimited `select("status, quoted_fee_zar")` backs the stats; the
+display list keeps its limit. "Speakers Explored" (which reported the length of
+a 4-row preview query) is now a real `count: "exact"` and relabelled "Speakers
+Available". The hardcoded "Good morning" greeting is now time-based, pinned to
+`Africa/Johannesburg` rather than the deploy region's clock.
+
+---
+
+## 2026-09-07 · bug · Assorted defects found in the same audit
+
+**Type:** bug
+**Affected:** several
+**Severity:** low–medium
+
+- **Modal could not be dismissed by clicking outside** (`src/components/ui/Modal.tsx`) —
+  the overlay compared the click target against its own ref, but the backdrop
+  div covers the overlay edge to edge, so the target was always the backdrop
+  and the comparison never matched. The backdrop now owns the dismiss handler.
+- **Empty-string UUIDs** (5 pages) — `.eq("speaker_id", sp?.id ?? "")` sends
+  `""` to a `uuid` column, which Postgres rejects with 22P02 rather than
+  matching no rows; the error was then swallowed and rendered as "no bookings",
+  masking the real cause. Each call site now guards on the missing profile, and
+  the rider lookups key off `booking.speaker_id` (always present) instead of
+  the embedded join (which RLS can null out).
+- **Speaker profile page span an infinite skeleton** — a failed or empty
+  `speaker_profiles` fetch left `sp` null forever with no error path. It now
+  distinguishes loading from failed and shows the reason.
+- **Removing a portfolio photo could leave a dead URL** — the DB stores the
+  canonical URL (query string stripped) but the filter compared the raw URL, so
+  a cache-busted URL deleted the storage object while leaving the row's URL in
+  place: a permanently broken image on the public profile.
+- **Storage URL validation was a substring check** — `url.includes("/speaker-photos/<uid>/")`
+  is satisfied by `https://attacker.example/speaker-photos/<uid>/x.png`. URLs
+  are now parsed and pinned to this project's Supabase origin, bucket and the
+  caller's own folder.
+- **File size/MIME limits were browser-only** — enforced in the upload handler
+  but not on the bucket, so a direct storage API call bypassed them entirely.
+  Now declared on `storage.buckets`.
+- **PostgREST filter injection in admin user search** — the search term was
+  interpolated raw into `.or()`, so `x,role.eq.ADMIN` rewrote the query's
+  logic. The term is now wildcard-escaped and quoted.
+- **`adminUpdateBookingStatus` erased the cancellation reason** on every status
+  change, because it always wrote `cancelled_reason: reason ?? null`.
+- **`total_events` counted reviews, not events** — a speaker with twenty
+  completed events and two reviews was shown to clients as "2 events". It now
+  counts COMPLETED bookings, and both stats recompute on review update/delete
+  and on booking completion (previously only on review insert).
+- **Admins were routed to the client dashboard** after an OAuth/magic-link
+  callback, unlike every other role-routing path.
+- **`/admin` was not in the middleware matcher**, relying solely on the guard
+  inside `AdminLayout`.
+- **Chat thread went stale between bookings** — `useRealtimeMessages` seeded
+  state from `initialMessages` on first render only, so navigating from one
+  booking's thread to another kept showing the previous one.
+- **Booking form cleared every validation error on any keystroke**, so the
+  other messages on the step vanished as soon as the user fixed the first; it
+  also had no client-side check for past dates, reversed date ranges, or
+  out-of-range durations, all of which the server rejects.
+
+---
+
 ## 2026-08-18 · bug · "Request Booking" button spins forever, wizard never opens (regression in the same-day fix)
 
 **Type:** bug
