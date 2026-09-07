@@ -50,8 +50,14 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
+  // /admin was missing here — it relied solely on the guard inside
+  // AdminLayout, so an unauthenticated request rendered a layout pass before
+  // being turned away rather than being redirected at the edge like the
+  // other two portals.
   const isProtected =
-    pathname.startsWith("/client") || pathname.startsWith("/speaker");
+    pathname.startsWith("/client") ||
+    pathname.startsWith("/speaker") ||
+    pathname.startsWith("/admin");
   const isAuthPage =
     pathname === "/login" || pathname === "/register";
 

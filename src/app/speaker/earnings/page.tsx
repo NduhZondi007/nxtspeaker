@@ -18,12 +18,16 @@ export default async function SpeakerEarningsPage() {
     .eq("user_id", user.id)
     .single();
 
-  const { data: rawBookings } = await supabase
-    .from("bookings")
-    .select("*, profiles(*)")
-    .eq("speaker_id", sp?.id ?? "")
-    .in("status", ["CONFIRMED", "DEPOSIT_PAID", "COMPLETED"])
-    .order("event_date", { ascending: false });
+  // Guarded rather than falling back to `""`, which Postgres rejects for a
+  // uuid column (22P02) instead of matching no rows.
+  const { data: rawBookings } = sp
+    ? await supabase
+        .from("bookings")
+        .select("*, profiles(*)")
+        .eq("speaker_id", sp.id)
+        .in("status", ["CONFIRMED", "DEPOSIT_PAID", "COMPLETED"])
+        .order("event_date", { ascending: false })
+    : { data: [] };
 
   const bookings = (rawBookings ?? []) as Booking[];
 

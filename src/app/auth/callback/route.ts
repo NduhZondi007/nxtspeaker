@@ -20,8 +20,13 @@ export async function GET(request: NextRequest) {
           .eq("id", user.id)
           .single();
 
+        // Mirror the role routing in loginUser() and the home page —
+        // an ADMIN used to be dropped on the client dashboard instead.
         if (profile?.role === "SPEAKER") {
           return NextResponse.redirect(`${origin}/speaker/dashboard`);
+        }
+        if (profile?.role === "ADMIN") {
+          return NextResponse.redirect(`${origin}/admin/dashboard`);
         }
         return NextResponse.redirect(`${origin}/client/dashboard`);
       }

@@ -5,6 +5,7 @@ import { Check, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { HospitalityRiderView } from "@/components/bookings/HospitalityRiderView";
+import { validateBookingDates } from "@/lib/utils/booking";
 import { formatZAR } from "@/lib/utils/currency";
 import type { SpeakerProfile, HospitalityRider, Profile, EventFormat } from "@/lib/types/database";
 
@@ -60,18 +61,48 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
   const [submitting, setSubmitting] = useState(false);
 
   const speakerName = speaker.profiles?.full_name ?? "Speaker";
+  // Earliest selectable event date: tomorrow, matching validateBookingDates.
+  const minEventDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
   function update(patch: Partial<BookingFormData>) {
     setData((prev) => ({ ...prev, ...patch }));
-    setErrors({});
+    // Clear only the errors for the fields actually being edited — wiping
+    // the whole map on every keystroke made the other messages on the step
+    // vanish the moment the user started fixing the first one.
+    setErrors((prev) => {
+      const next = { ...prev };
+      for (const key of Object.keys(patch) as (keyof BookingFormData)[]) {
+        delete next[key];
+      }
+      return next;
+    });
   }
 
   function validateStep1(): boolean {
     const e: typeof errors = {};
     if (!data.event_name.trim()) e.event_name = "Event name is required";
     if (!data.exact_location.trim()) e.exact_location = "Location is required";
-    if (!data.event_date) e.event_date = "Event date is required";
     if (!data.event_organiser.trim()) e.event_organiser = "Event organiser is required";
+
+    // Mirrors the server-side rules in createBooking / the bookings API so
+    // the wizard cannot advance into a request the server will reject.
+    const dateError = validateBookingDates(data.event_date, data.event_end_date);
+    if (dateError) {
+      if (dateError.startsWith("End date")) e.event_end_date = dateError;
+      else e.event_date = dateError;
+    }
+
+    if (!Number.isInteger(data.duration_minutes) || data.duration_minutes < 15 || data.duration_minutes > 480) {
+      e.duration_minutes = "Duration must be between 15 and 480 minutes";
+    }
+
+    if (
+      data.estimated_audience !== undefined &&
+      (!Number.isInteger(data.estimated_audience) || data.estimated_audience <= 0)
+    ) {
+      e.estimated_audience = "Audience size must be a positive whole number";
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -170,6 +201,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
               type="date"
               label="Event Date *"
               value={data.event_date}
+              min={minEventDate}
               onChange={(e) => update({ event_date: e.target.value })}
               error={errors.event_date}
             />
@@ -177,7 +209,9 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
               type="date"
               label="End Date (optional)"
               value={data.event_end_date}
+              min={data.event_date || minEventDate}
               onChange={(e) => update({ event_end_date: e.target.value })}
+              error={errors.event_end_date}
             />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -202,6 +236,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
               onChange={(e) => update({ duration_minutes: Number(e.target.value) })}
               min={15}
               max={480}
+              error={errors.duration_minutes}
             />
           </div>
           <Input
@@ -209,7 +244,9 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
             label="Estimated Audience Size"
             placeholder="e.g. 500"
             value={data.estimated_audience ?? ""}
+            min={1}
             onChange={(e) => update({ estimated_audience: e.target.value ? Number(e.target.value) : undefined })}
+            error={errors.estimated_audience}
           />
         </div>
       )}

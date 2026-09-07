@@ -8,6 +8,19 @@ export function useRealtimeMessages(bookingId: string, initialMessages: Message[
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const profileCache = useRef<Map<string, Message["profiles"]>>(new Map());
 
+  // `initialMessages` seeds state only on first render, so navigating from
+  // one booking's thread to another (or a router.refresh() that returns new
+  // server-rendered messages) left the previous booking's thread on screen.
+  // Re-seed whenever the server hands us a different thread or a longer one.
+  const initialIds = initialMessages.map((m) => m.id).join(",");
+  useEffect(() => {
+    setMessages(initialMessages);
+    profileCache.current.clear();
+    // `initialIds` is a stable digest of the prop; depending on the array
+    // itself would re-run on every render because the parent rebuilds it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookingId, initialIds]);
+
   useEffect(() => {
     const supabase = createClient();
 

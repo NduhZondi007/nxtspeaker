@@ -137,7 +137,10 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
         // Land the client on the new booking's confirmation page instead of
         // just closing the modal back to the speaker grid — the toast alone
         // fades and leaves no persistent evidence the request went through.
-        router.push(`/client/bookings/${result.data.id}`);
+        // Fall back to the list if the insert returned no row: the booking
+        // was created either way, and reading `.id` off nothing would throw
+        // into the catch below and report a failure that did not happen.
+        router.push(result.data?.id ? `/client/bookings/${result.data.id}` : "/client/bookings");
       }
     } catch (err) {
       // The call itself rejecting (network failure, unexpected server
