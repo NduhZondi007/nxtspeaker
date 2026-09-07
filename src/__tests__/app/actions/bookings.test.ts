@@ -90,6 +90,21 @@ const validBookingInput = () => ({
   hospitality_rider_agreed: true,
 });
 
+/** Satisfies every field in PROFILE_COMPLETENESS_FIELDS. */
+function completeSpeaker(overrides: Record<string, unknown> = {}) {
+  return {
+    speaking_fee_zar: 85000,
+    status: "ACTIVE",
+    bio: "Twenty years on stage.",
+    expertise: ["Leadership"],
+    languages: ["English"],
+    location: "Johannesburg",
+    photo_urls: ["https://cdn.example/p1.png"],
+    profiles: { avatar_url: "https://cdn.example/a.png" },
+    ...overrides,
+  };
+}
+
 function ok(data: unknown) {
   return { data, error: null };
 }
@@ -103,7 +118,9 @@ beforeEach(() => {
 describe("createBooking", () => {
   beforeEach(() => {
     supabaseState.responders.profiles = () => ok({ role: "CLIENT" });
-    supabaseState.responders.speaker_profiles = () => ok({ speaking_fee_zar: 85000, status: "ACTIVE" });
+    // A fully complete, listable speaker — createBooking now refuses to book a
+    // speaker whose profile is not 100% complete.
+    supabaseState.responders.speaker_profiles = () => ok(completeSpeaker());
     supabaseState.responders.bookings = (state) =>
       ok({ id: BOOKING_ID, ...(state.payload ?? {}) });
   });
@@ -155,6 +172,28 @@ describe("createBooking", () => {
     supabaseState.responders.profiles = () => ok({ role: "SPEAKER" });
     const result = await createBooking(validBookingInput());
     expect(result.error).toBe("Only clients can create bookings");
+  });
+
+  it("refuses to book a speaker whose profile is not 100% complete", async () => {
+    // Same rule that hides them from discovery — a stale link must not be a
+    // way around it. Each of these is otherwise a valid ACTIVE speaker.
+    for (const missing of [
+      { bio: null },
+      { expertise: [] },
+      { languages: [] },
+      { location: null },
+      { speaking_fee_zar: 0 },
+      { photo_urls: [] },
+      { profiles: { avatar_url: null } },
+    ]) {
+      supabaseState.writes = [];
+      supabaseState.responders.speaker_profiles = () => ok(completeSpeaker(missing));
+
+      const result = await createBooking(validBookingInput());
+
+      expect(result.error).toBe("This speaker is not currently accepting bookings");
+      expect(supabaseState.writes).toHaveLength(0);
+    }
   });
 
   it("refuses when not signed in", async () => {

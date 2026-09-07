@@ -6,6 +6,7 @@ import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatZAR } from "@/lib/utils/currency";
+import { isSpeakerListable } from "@/lib/utils/profile-completeness";
 import type { Booking, SpeakerProfile } from "@/lib/types/database";
 
 /**
@@ -36,17 +37,21 @@ export default async function ClientDashboardPage() {
   // stats must cover the client's whole history — computing them from the
   // same truncated list under-reported "Events Completed" and "Total Spent"
   // for anyone with more than five bookings.
-  const [{ data: profile }, { data: bks }, { data: allBookings }, { data: sps }, { count: speakerCount }] =
+  const [{ data: profile }, { data: bks }, { data: allBookings }, { data: sps }] =
     await Promise.all([
       supabase.from("profiles").select("id, full_name").eq("id", user.id).single(),
       supabase.from("bookings").select("*, speaker_profiles(*, profiles(*))").eq("client_id", user.id).order("created_at", { ascending: false }).limit(5),
       supabase.from("bookings").select("status, quoted_fee_zar").eq("client_id", user.id),
-      supabase.from("speaker_profiles").select("*, profiles(*)").eq("status", "ACTIVE").eq("available", true).order("avg_rating", { ascending: false }).limit(4),
-      supabase.from("speaker_profiles").select("*", { count: "exact", head: true }).eq("status", "ACTIVE").eq("available", true),
+      // Not `.limit(4)`, and no separate head-count: incomplete profiles are
+      // filtered out below, so limiting in SQL would under-fill the widget and
+      // a `head: true` count would still include the hidden speakers.
+      supabase.from("speaker_profiles").select("*, profiles(*)").eq("status", "ACTIVE").eq("available", true).order("avg_rating", { ascending: false }),
     ]);
 
   const bookings = (bks ?? []) as Booking[];
-  const speakers = (sps ?? []) as SpeakerProfile[];
+  // Same listability rule as /client/discover — see getSpeakers.
+  const speakers = ((sps ?? []) as SpeakerProfile[]).filter((sp) => isSpeakerListable(sp));
+  const speakerCount = speakers.length;
   const history = (allBookings ?? []) as Pick<Booking, "status" | "quoted_fee_zar">[];
 
   const activeBookings    = history.filter((b) => ["PENDING", "CONFIRMED", "DEPOSIT_PAID"].includes(b.status)).length;
@@ -57,7 +62,7 @@ export default async function ClientDashboardPage() {
     { label: "Active Bookings",    value: String(activeBookings),    icon: CalendarCheck, color: "#FF5700" },
     { label: "Events Completed",   value: String(completedBookings), icon: TrendingUp,    color: "#629DAB" },
     { label: "Total Spent",        value: formatZAR(totalSpent),     icon: DollarSign,    color: "#031E57" },
-    { label: "Speakers Available", value: String(speakerCount ?? 0), icon: Search,        color: "#629DAB" },
+    { label: "Speakers Available", value: String(speakerCount), icon: Search,        color: "#629DAB" },
   ];
 
   return (

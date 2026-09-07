@@ -8,6 +8,30 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Only 100%-complete speaker profiles are shown to clients.** A speaker is
+  listable when every field in `PROFILE_COMPLETENESS_FIELDS` is filled in:
+  biography, at least one expertise topic, at least one language, location, a
+  speaking fee above 0, a profile photo, and at least one portfolio photo.
+  Both images are required, per the request that "100% completion include
+  pictures".
+  - The rule lives in one place (`src/lib/utils/profile-completeness.ts`) and is
+    shared by the speaker's own progress bar and the client-facing listing, so
+    the percentage a speaker sees can never disagree with whether they are
+    actually visible. The previous inline calculation on the speaker dashboard
+    counted six fields and ignored portfolio photos entirely.
+  - Applied to `/client/discover` (via `getSpeakers`) and the client dashboard's
+    "Top Speakers" widget and speaker count. The admin speaker list is
+    deliberately **not** filtered — admins still see everyone.
+  - `createBooking` and `POST /api/bookings` refuse a booking for a speaker who
+    is not listable, so a stale link or hand-crafted request is not a way around
+    the rule.
+  - The speaker dashboard now says plainly that the profile is not visible yet
+    and lists exactly which fields are outstanding, rather than showing a bare
+    percentage.
+  - An unset `speaking_fee_zar` of 0 counts as incomplete, since that is the
+    column default and is indistinguishable from "free".
+
 ### Security
 - **Every trigger function was exposed as a public RPC endpoint** — Postgres
   grants `EXECUTE` to `PUBLIC` by default and PostgREST publishes anything

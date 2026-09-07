@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { SpeakerProfile } from "@/lib/types/database";
 import type { FilterState } from "@/components/speakers/SpeakerFilters";
+import { isSpeakerListable } from "@/lib/utils/profile-completeness";
 
 export const DEFAULT_SPEAKER_FILTERS: FilterState = {
   search: "",
@@ -58,7 +59,13 @@ export async function getSpeakers(
     return { data: [], error: error.message };
   }
 
-  let results = (data ?? []) as SpeakerProfile[];
+  // Only fully-complete profiles are shown to clients. Applied here rather
+  // than as PostgREST filters because the rule spans both tables (the avatar
+  // lives on the joined `profiles` row) and because sharing one predicate with
+  // the speaker's own progress bar is what stops the two from disagreeing —
+  // see isSpeakerListable in @/lib/utils/profile-completeness.
+  let results = ((data ?? []) as SpeakerProfile[]).filter((sp) => isSpeakerListable(sp));
+
   if (filters.search) {
     results = filterBySearch(results, filters.search);
   }

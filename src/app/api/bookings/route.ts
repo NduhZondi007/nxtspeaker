@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { validateBookingDates } from "@/lib/utils/booking";
+import { isSpeakerListable } from "@/lib/utils/profile-completeness";
+import type { SpeakerProfile } from "@/lib/types/database";
 
 const BookingSchema = z.object({
   speaker_id: z.string().uuid(),
@@ -71,13 +73,24 @@ export async function POST(request: NextRequest) {
   // Look up the speaker's authoritative fee — never trust client-supplied values
   const { data: speaker } = await supabase
     .from("speaker_profiles")
-    .select("speaking_fee_zar")
+    .select(
+      "speaking_fee_zar, status, bio, expertise, languages, location, photo_urls, profiles(avatar_url)"
+    )
     .eq("id", input.speaker_id)
     .eq("status", "ACTIVE")
     .single();
 
   if (!speaker) {
     return NextResponse.json({ error: "Speaker not found or unavailable" }, { status: 404 });
+  }
+
+  // Mirrors createBooking: a speaker hidden from discovery for an incomplete
+  // profile is not bookable here either.
+  if (!isSpeakerListable(speaker as unknown as Partial<SpeakerProfile>)) {
+    return NextResponse.json(
+      { error: "This speaker is not currently accepting bookings" },
+      { status: 409 }
+    );
   }
 
   // Use the regular (anon-key) client so RLS policies apply to the INSERT

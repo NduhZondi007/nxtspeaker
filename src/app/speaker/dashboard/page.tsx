@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { CalendarCheck, Clock, CheckCircle, DollarSign, ChevronRight } from "lucide-react";
+import { CalendarCheck, Clock, CheckCircle, DollarSign, ChevronRight, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatZAR } from "@/lib/utils/currency";
 import { updateBookingStatus } from "@/app/actions/bookings";
+import { getProfileCompleteness } from "@/lib/utils/profile-completeness";
 import type { Booking } from "@/lib/types/database";
 
 export default async function SpeakerDashboardPage() {
@@ -16,7 +17,7 @@ export default async function SpeakerDashboardPage() {
 
   const [{ data: profile }, { data: speakerProfile }] = await Promise.all([
     supabase.from("profiles").select("id, full_name, avatar_url").eq("id", user.id).single(),
-    supabase.from("speaker_profiles").select("id, bio, expertise, location, speaking_fee_zar, languages").eq("user_id", user.id).single(),
+    supabase.from("speaker_profiles").select("id, bio, expertise, location, speaking_fee_zar, languages, photo_urls, status").eq("user_id", user.id).single(),
   ]);
 
   // Guarded rather than falling back to `""`, which Postgres rejects for a
@@ -36,15 +37,12 @@ export default async function SpeakerDashboardPage() {
   const completed = bookings.filter((b) => b.status === "COMPLETED");
   const totalEarnings = completed.reduce((sum: number, b: Booking) => sum + Number(b.quoted_fee_zar), 0);
 
-  const fields = [
-    speakerProfile?.bio,
-    speakerProfile?.expertise?.length,
-    speakerProfile?.location,
-    speakerProfile?.speaking_fee_zar,
-    profile?.avatar_url,
-    speakerProfile?.languages?.length,
-  ];
-  const completeness = Math.round((fields.filter(Boolean).length / fields.length) * 100);
+  // One shared definition with the client-facing listing rule, so the number
+  // shown here can never disagree with whether the speaker is actually visible.
+  const { percent: completeness, isComplete, missing } = getProfileCompleteness(
+    speakerProfile,
+    profile
+  );
 
   const stats = [
     { label: "Total Bookings",   value: String(bookings.length),  icon: CalendarCheck, color: "#629DAB" },
@@ -147,9 +145,42 @@ export default async function SpeakerDashboardPage() {
                 </div>
                 <span className="text-sm font-bold text-secondary">{completeness}%</span>
               </div>
-              {completeness < 100 && (
+
+              {/* Without this, a speaker held back by the listing rule has no
+                  way to discover they are invisible to clients, or why. */}
+              {!isComplete && (
+                <div className="mt-3 rounded-[8px] border border-accent/30 bg-accent/5 p-3">
+                  <div className="flex items-start gap-2">
+                    <EyeOff size={14} className="text-accent shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-ink">
+                        Your profile is not visible to clients yet
+                      </p>
+                      <p className="text-[11px] text-muted mt-0.5">
+                        Profiles appear in search once they are 100% complete. Still to add:
+                      </p>
+                      <ul className="mt-1.5 space-y-0.5">
+                        {missing.map((field) => (
+                          <li key={field.key} className="text-[11px] text-ink flex items-start gap-1.5">
+                            <span className="text-accent leading-none">•</span>
+                            {field.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isComplete && (
+                <p className="text-[11px] text-success mt-2">
+                  ✓ Your profile is live and visible to clients.
+                </p>
+              )}
+
+              {!isComplete && (
                 <Link href="/speaker/profile">
-                  <Button variant="outline" size="sm" className="w-full mt-2">Complete Profile</Button>
+                  <Button variant="outline" size="sm" className="w-full mt-3">Complete Profile</Button>
                 </Link>
               )}
             </div>

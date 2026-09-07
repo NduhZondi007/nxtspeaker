@@ -9,7 +9,8 @@ import {
   isBookingStatus,
   validateBookingDates,
 } from "@/lib/utils/booking";
-import type { BookingStatus, EventFormat } from "@/lib/types/database";
+import { isSpeakerListable } from "@/lib/utils/profile-completeness";
+import type { BookingStatus, EventFormat, SpeakerProfile } from "@/lib/types/database";
 
 interface CreateBookingInput {
   speaker_id: string;
@@ -85,12 +86,21 @@ export async function createBooking(input: CreateBookingInput) {
   // Always look up the speaker's listed fee — never trust the client-supplied value
   const { data: speaker } = await supabase
     .from("speaker_profiles")
-    .select("speaking_fee_zar, status")
+    .select(
+      "speaking_fee_zar, status, bio, expertise, languages, location, photo_urls, profiles(avatar_url)"
+    )
     .eq("id", booking.speaker_id)
     .eq("status", "ACTIVE")
     .single();
 
   if (!speaker) return { error: "Speaker not found or unavailable" };
+
+  // A speaker hidden from discovery for an incomplete profile must not be
+  // bookable through a stale link or a hand-crafted request either — the same
+  // rule that governs the listing governs the booking.
+  if (!isSpeakerListable(speaker as unknown as Partial<SpeakerProfile>)) {
+    return { error: "This speaker is not currently accepting bookings" };
+  }
 
   const { data, error } = await supabase
     .from("bookings")
