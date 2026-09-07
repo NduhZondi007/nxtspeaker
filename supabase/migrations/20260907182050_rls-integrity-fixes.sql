@@ -236,6 +236,17 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
+  -- refresh_speaker_stats() recomputes avg_rating/total_events from a trigger
+  -- fired by the *reviewing client's* or *booking speaker's* own session.
+  -- SECURITY DEFINER changes the executing role but not auth.uid(), which
+  -- reads the request JWT — so without this escape hatch the platform's own
+  -- stats write would trip the guard below and abort the review or booking
+  -- that triggered it. The flag is transaction-local (set_config(..., true))
+  -- and only ever set immediately around that one UPDATE.
+  IF current_setting('app.platform_stats_update', true) = 'on' THEN
+    RETURN NEW;
+  END IF;
+
   IF auth.uid() IS NULL
      OR (auth.jwt() -> 'app_metadata' ->> 'role') = 'ADMIN' THEN
     RETURN NEW;
@@ -332,6 +343,11 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
+  -- Announce that the next write is the platform's own recomputation, so
+  -- enforce_speaker_profile_update_rules() lets it through. Transaction-local,
+  -- and cleared immediately afterwards so it cannot cover any other write.
+  PERFORM set_config('app.platform_stats_update', 'on', true);
+
   UPDATE public.speaker_profiles
   SET
     avg_rating = COALESCE(
@@ -343,6 +359,8 @@ BEGIN
       WHERE speaker_id = target_speaker_id AND status = 'COMPLETED'
     )
   WHERE id = target_speaker_id;
+
+  PERFORM set_config('app.platform_stats_update', 'off', true);
 END;
 $$;
 

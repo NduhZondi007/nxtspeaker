@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Security
+- **Every trigger function was exposed as a public RPC endpoint** — Postgres
+  grants `EXECUTE` to `PUBLIC` by default and PostgREST publishes anything
+  executable in the exposed schema, so all of them were callable at
+  `/rest/v1/rpc/<name>` by anyone with the anon key (linter 0028/0029).
+  `EXECUTE` is now revoked on all of them; `shares_booking_with` keeps it for
+  `authenticated` only, since an RLS policy calls it. Also pins `search_path`
+  on `handle_updated_at` (linter 0011).
 - **Registration accepted any role, including ADMIN** — `registerUser` read
   `role` straight off the submitted form and wrote it to both
   `app_metadata.role` and `profiles.role`, so a crafted POST self-provisioned
@@ -42,6 +49,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
   and MIME limits, previously browser-only, are now declared on the buckets.
 
 ### Fixed
+- **Booking creation was failing in production on a duplicate `booking_number`**
+  — found while verifying the RLS migration against the live database, and
+  pre-existing rather than caused by it. `20260524000001` swapped the racy
+  `COUNT(*)+1` generator for `booking_number_seq` but created the sequence with
+  `START 1` and never advanced it past the numbers already issued, so
+  `nextval()` returned values that were already taken and every new booking was
+  rejected. The sequence is advanced past the highest number ever issued, and
+  the generator now retries on collision instead of failing the insert.
 - **Speakers never saw who booked them** — no `profiles` SELECT policy let a
   speaker read a client's row, so the bookings list, booking detail, earnings
   history and chat all rendered the fallbacks "Client" and "Participant". Added

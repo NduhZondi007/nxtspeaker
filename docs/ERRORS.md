@@ -3,6 +3,83 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-09-07 · bug · Booking creation was failing in production on a duplicate booking_number
+
+**Type:** bug
+**Affected:** `public.generate_booking_number()`, `booking_number_seq`
+**Severity:** critical
+
+**What happened:**
+Found while verifying the RLS migration against the live database: inserting a
+booking as a real client failed with
+
+```
+duplicate key value violates unique constraint "bookings_booking_number_key"
+```
+
+This was not caused by the migration — it was pre-existing and live. Creating a
+booking, the platform's core action, was broken for every user.
+
+**Root cause:**
+`20260524000001_security-fixes` replaced the racy `COUNT(*)+1` booking-number
+generator with `booking_number_seq`, but created the sequence with `START 1`
+and never advanced it past the numbers the old implementation had already
+issued. Three bookings already held `NXT-2026-00001..00003` while the sequence
+sat at `last_value = 1`, so `nextval()` returned 2, then 3 — both taken. The
+migration changed the generator without backfilling the state the previous
+generator had produced, turning the race condition it was fixing into an
+off-by-N that failed deterministically.
+
+It went unnoticed because the failure only appears on the *next* booking after
+the change, and the affected rows were seed/test data nobody re-exercised.
+
+**Fix:**
+`20260907182217_fix-booking-number-sequence.sql`: `setval()` the sequence past
+the highest number ever issued, and make `generate_booking_number()` retry on
+collision instead of letting the insert fail. The retry probe is
+`SECURITY DEFINER` because under RLS the inserting client can only see their
+own bookings and would miss a clash with another user's row.
+
+**Prevention:**
+Any migration that replaces a value generator must backfill the new generator's
+state from the existing data in the same migration. Booking creation is now
+covered by a live end-to-end check (insert → transition → cancel, rolled back)
+run as part of applying schema changes.
+
+---
+
+## 2026-09-07 · security · Every trigger function was exposed as a public RPC endpoint
+
+**Type:** security
+**Affected:** all `public.*` trigger functions
+**Severity:** low
+
+**What happened:**
+The Supabase database linter (lints 0028/0029) reported that every trigger
+function in `public` — including the new `enforce_*` guards — was callable by
+the `anon` role at `/rest/v1/rpc/<name>`.
+
+**Root cause:**
+Postgres grants `EXECUTE` on a new function to `PUBLIC` by default, and
+PostgREST publishes everything executable in the exposed schema. Nothing in the
+schema had ever revoked it.
+
+**Fix:**
+`20260907182321_revoke-execute-on-trigger-functions.sql` revokes `EXECUTE` from
+`PUBLIC`/`anon`/`authenticated` on every trigger function. Trigger functions are
+invoked by the table operation and are not privilege-checked against the calling
+role, so this removes the endpoint without affecting trigger firing — confirmed
+by re-running the live insert/transition/`updated_at` checks afterwards.
+`shares_booking_with` keeps `EXECUTE` for `authenticated` only, because an RLS
+policy on `profiles` calls it. Also pins `search_path` on `handle_updated_at`
+(lint 0011), the one trigger function 20260616195246 missed.
+
+**Prevention:**
+`get_advisors` is now run after every schema change, and new trigger functions
+must ship with a matching `REVOKE`.
+
+---
+
 ## 2026-09-07 · security · Registration accepted any role, including ADMIN
 
 **Type:** security
