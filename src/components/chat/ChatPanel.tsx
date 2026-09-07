@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ChatInput } from "@/components/chat/ChatInput";
+import { ChatInput, type SendResult } from "@/components/chat/ChatInput";
 import { ChatLocked } from "@/components/chat/ChatLocked";
 import { useRealtimeMessages } from "@/lib/hooks/useRealtimeMessages";
 import { canChat } from "@/lib/utils/booking";
@@ -11,7 +11,7 @@ interface ChatPanelProps {
   booking: Booking;
   initialMessages: Message[];
   currentUser: Profile;
-  onSend: (bookingId: string, content: string) => Promise<void>;
+  onSend: (bookingId: string, content: string) => Promise<SendResult | void>;
 }
 
 export function ChatPanel({ booking, initialMessages, currentUser, onSend }: ChatPanelProps) {

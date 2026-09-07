@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { X } from "lucide-react";
 
 interface ModalProps {
@@ -20,8 +20,6 @@ const maxWidthMap = {
 };
 
 export function Modal({ open, onClose, title, children, maxWidth = "lg" }: ModalProps) {
-  const overlayRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -45,14 +43,18 @@ export function Modal({ open, onClose, title, children, maxWidth = "lg" }: Modal
 
   return (
     <div
-      ref={overlayRef}
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onClose();
-      }}
+      role="dialog"
+      aria-modal="true"
     >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-ink/60 backdrop-blur-sm" />
+      {/* Backdrop — owns the dismiss click. The overlay used to compare the
+          click target against itself, but this backdrop covers the overlay
+          edge to edge, so the target was always the backdrop and clicking
+          outside the panel never closed the modal. */}
+      <div
+        className="absolute inset-0 bg-ink/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
       {/* Panel */}
       <div

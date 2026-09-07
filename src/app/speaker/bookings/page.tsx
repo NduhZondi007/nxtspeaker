@@ -13,11 +13,18 @@ export default async function SpeakerBookingsPage() {
   if (!user) redirect("/login");
 
   const { data: sp } = await supabase.from("speaker_profiles").select("id").eq("user_id", user.id).single();
-  const { data: bks } = await supabase
-    .from("bookings")
-    .select("*, profiles(*)")
-    .eq("speaker_id", sp?.id ?? "")
-    .order("event_date", { ascending: true });
+
+  // Skip the query entirely when there is no speaker profile yet. The old
+  // `sp?.id ?? ""` fallback sent an empty string to a uuid column, which
+  // Postgres rejects outright (22P02) — the error was then swallowed and
+  // rendered as "no bookings", masking the real cause.
+  const { data: bks } = sp
+    ? await supabase
+        .from("bookings")
+        .select("*, profiles(*)")
+        .eq("speaker_id", sp.id)
+        .order("event_date", { ascending: true })
+    : { data: [] };
 
   const bookings = (bks ?? []) as Booking[];
 

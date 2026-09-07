@@ -19,11 +19,15 @@ export default async function SpeakerDashboardPage() {
     supabase.from("speaker_profiles").select("id, bio, expertise, location, speaking_fee_zar, languages").eq("user_id", user.id).single(),
   ]);
 
-  const { data: bks } = await supabase
-    .from("bookings")
-    .select("id, event_name, event_date, event_format, exact_location, status, quoted_fee_zar, profiles(full_name)")
-    .eq("speaker_id", speakerProfile?.id ?? "")
-    .order("created_at", { ascending: false });
+  // Guarded rather than falling back to `""`, which Postgres rejects for a
+  // uuid column (22P02) instead of matching no rows.
+  const { data: bks } = speakerProfile
+    ? await supabase
+        .from("bookings")
+        .select("id, event_name, event_date, event_format, exact_location, status, quoted_fee_zar, profiles(full_name)")
+        .eq("speaker_id", speakerProfile.id)
+        .order("created_at", { ascending: false })
+    : { data: [] };
 
   const bookings = (bks ?? []) as unknown as Booking[];
 

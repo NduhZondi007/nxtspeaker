@@ -54,18 +54,22 @@ export default async function ClientBookingDetailPage({ params }: Props) {
 
   if (!booking) notFound();
 
+  // Keyed off the booking's own `speaker_id` column rather than the embedded
+  // join, which RLS can return as null — the old `?? ""` fallback then sent an
+  // empty string to a uuid column (22P02) and the rider silently disappeared.
   const { data: rider } = await supabase
     .from("hospitality_riders")
     .select("*")
-    .eq("speaker_id", (booking as Booking).speaker_profiles?.id ?? "")
-    .single();
+    .eq("speaker_id", (booking as Booking).speaker_id)
+    .maybeSingle();
 
   const speaker     = (booking as Booking).speaker_profiles;
   const speakerName = speaker?.profiles?.full_name ?? "Speaker";
 
   async function handleSendMessage(bookingId: string, content: string) {
     "use server";
-    await sendMessage(bookingId, content);
+    const result = await sendMessage(bookingId, content);
+    return result.error ? { error: result.error } : {};
   }
 
   return (

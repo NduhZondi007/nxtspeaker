@@ -25,6 +25,8 @@ const LANGUAGE_OPTIONS = ["English", "Afrikaans", "Zulu", "Xhosa", "Sotho", "Tsw
 export default function SpeakerProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [sp, setSp] = useState<SpeakerProfile | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
@@ -38,16 +40,43 @@ export default function SpeakerProfilePage() {
 
   useEffect(() => {
     if (!user) return;
+    let cancelled = false;
+
     async function load() {
-      const [{ data: p }, { data: s }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user!.id).single(),
-        supabase.from("speaker_profiles").select("*, profiles(*)").eq("user_id", user!.id).single(),
-      ]);
-      setProfile(p as Profile);
-      setSp(s as SpeakerProfile);
-      setVideoUrl((s as SpeakerProfile)?.profile_video_url ?? "");
+      try {
+        const [{ data: p }, { data: s, error: spError }] = await Promise.all([
+          supabase.from("profiles").select("*").eq("id", user!.id).single(),
+          supabase.from("speaker_profiles").select("*, profiles(*)").eq("user_id", user!.id).maybeSingle(),
+        ]);
+        if (cancelled) return;
+
+        setProfile((p as Profile) ?? null);
+        setSp((s as SpeakerProfile) ?? null);
+        setVideoUrl((s as SpeakerProfile)?.profile_video_url ?? "");
+
+        // Without this, a failed or empty fetch left `sp` null forever and
+        // the page showed its loading skeleton indefinitely with no
+        // indication that anything had gone wrong.
+        if (spError) {
+          setLoadError(spError.message);
+        } else if (!s) {
+          setLoadError("No speaker profile is linked to this account.");
+        } else {
+          setLoadError(null);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.error("[speaker/profile] load failed:", err);
+        setLoadError("Could not load your profile. Please refresh and try again.");
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
     }
+
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [user, supabase]);
 
   async function handleSave() {
@@ -211,7 +240,20 @@ export default function SpeakerProfilePage() {
       <div>
         <TopBar title="My Profile" />
         <div className="p-6">
-          <div className="h-96 bg-soft rounded-[12px] animate-pulse" />
+          {loaded && loadError ? (
+            <div className="flex items-start gap-3 bg-danger/5 border border-danger/30 rounded-[12px] p-5 max-w-2xl">
+              <XCircle size={18} className="text-danger shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-danger">Profile unavailable</p>
+                <p className="text-xs text-ink mt-1">{loadError}</p>
+                <p className="text-xs text-muted mt-2">
+                  If this persists, contact support so your speaker profile can be restored.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="h-96 bg-soft rounded-[12px] animate-pulse" />
+          )}
         </div>
       </div>
     );

@@ -45,12 +45,17 @@ export default async function SpeakerBookingDetailPage({ params }: Props) {
     .eq("user_id", user.id)
     .single();
 
+  // No speaker profile means no booking of theirs can exist. Bailing out here
+  // avoids sending `""` to the uuid `speaker_id` column, which Postgres
+  // rejects (22P02) rather than simply matching nothing.
+  if (!sp) notFound();
+
   const [{ data: booking }, { data: profile }, { data: messages }, { data: rider }] = await Promise.all([
     supabase
       .from("bookings")
       .select("*, profiles(*)")
       .eq("id", id)
-      .eq("speaker_id", sp?.id ?? "")
+      .eq("speaker_id", sp.id)
       .single(),
     supabase.from("profiles").select("id, full_name, avatar_url, role").eq("id", user.id).single(),
     supabase
@@ -61,8 +66,8 @@ export default async function SpeakerBookingDetailPage({ params }: Props) {
     supabase
       .from("hospitality_riders")
       .select("*")
-      .eq("speaker_id", sp?.id ?? "")
-      .single(),
+      .eq("speaker_id", sp.id)
+      .maybeSingle(),
   ]);
 
   if (!booking) notFound();
@@ -81,7 +86,8 @@ export default async function SpeakerBookingDetailPage({ params }: Props) {
 
   async function handleSendMessage(bookingId: string, content: string) {
     "use server";
-    await sendMessage(bookingId, content);
+    const result = await sendMessage(bookingId, content);
+    return result.error ? { error: result.error } : {};
   }
 
   return (

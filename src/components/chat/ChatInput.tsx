@@ -3,9 +3,15 @@
 import { useState, useRef, type KeyboardEvent } from "react";
 import { Send } from "lucide-react";
 import { BrandMentionCard } from "./BrandMentionCard";
+import { useToast } from "@/components/ui/Toast";
+
+export interface SendResult {
+  error?: string;
+}
 
 interface ChatInputProps {
-  onSend: (content: string) => Promise<void>;
+  /** Resolves with `{ error }` when the message could not be delivered. */
+  onSend: (content: string) => Promise<SendResult | void>;
   disabled?: boolean;
 }
 
@@ -14,17 +20,31 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [sending, setSending] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const showBrandCard = /nxtspeaker/i.test(value);
+  const { error } = useToast();
 
   async function handleSend() {
     const trimmed = value.trim();
     if (!trimmed || sending) return;
     setSending(true);
     try {
-      await onSend(trimmed);
+      const result = await onSend(trimmed);
+      // Only clear the box once the send actually succeeded — a failed send
+      // used to wipe the message the user had typed with no explanation and
+      // nothing appearing in the thread.
+      if (result?.error) {
+        error("Message not sent", result.error);
+        return;
+      }
       setValue("");
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
+    } catch (err) {
+      console.error("[chat] sendMessage failed:", err);
+      error(
+        "Message not sent",
+        err instanceof Error ? err.message : "Please try again."
+      );
     } finally {
       setSending(false);
     }

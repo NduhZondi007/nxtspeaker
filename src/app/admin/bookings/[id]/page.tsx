@@ -61,8 +61,8 @@ export default async function AdminBookingDetailPage({ params }: Props) {
     supabase
       .from("hospitality_riders")
       .select("*")
-      .eq("speaker_id", (booking as Booking).speaker_profiles?.id ?? "")
-      .single(),
+      .eq("speaker_id", (booking as Booking).speaker_id)
+      .maybeSingle(),
   ]);
 
   const b = booking as Booking;
@@ -75,7 +75,8 @@ export default async function AdminBookingDetailPage({ params }: Props) {
 
   async function handleSendMessage(bookingId: string, content: string) {
     "use server";
-    await adminSendMessage(bookingId, content);
+    const result = await adminSendMessage(bookingId, content);
+    return result.error ? { error: result.error } : {};
   }
 
   return (
