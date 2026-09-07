@@ -1,8 +1,36 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { isBookingStatus } from "@/lib/utils/booking";
+import { containsPattern, escapePostgrestFilterValue } from "@/lib/utils/postgrest";
 import type { BookingStatus, SpeakerProfileFormData } from "@/lib/types/database";
+
+const MAX_ADMIN_MESSAGE_LENGTH = 4000;
+
+/**
+ * Keeps `auth.users.app_metadata.role` in step with `profiles.role`.
+ *
+ * The two are read by different layers: the admin portal authorises against
+ * `profiles.role`, while every admin RLS policy authorises against the
+ * `app_metadata.role` claim in the request JWT (they were rewritten to read
+ * the claim in 20260622194851 to break an infinite-recursion loop). Updating
+ * only the table therefore produced an "admin" who could open the portal but
+ * whose queries still ran with ordinary-user visibility — `/admin/users`
+ * listed nobody but themselves. `app_metadata` is writable only by the
+ * service role, so it stays a trustworthy source for RLS.
+ *
+ * The claim is baked into the JWT at sign-in, so the user must re-authenticate
+ * (or refresh their token) before the new role takes effect in RLS.
+ */
+async function syncRoleClaim(userId: string, role: "ADMIN" | "SPEAKER" | "CLIENT") {
+  const service = createServiceClient();
+  const { error } = await service.auth.admin.updateUserById(userId, {
+    app_metadata: { role },
+  });
+  return error?.message ?? null;
+}
 
 async function assertAdmin() {
   const supabase = await createClient();
@@ -43,6 +71,16 @@ export async function promoteToAdmin(userId: string) {
 
   if (error) return { error: error.message };
 
+  const claimError = await syncRoleClaim(userId, "ADMIN");
+  if (claimError) {
+    // Roll the table back rather than leave the two sources disagreeing.
+    await service
+      .from("profiles")
+      .update({ role: target.role, base_role: null })
+      .eq("id", userId);
+    return { error: `Could not grant admin access: ${claimError}` };
+  }
+
   revalidatePath("/admin/users");
   revalidatePath(`/admin/users/${userId}`);
   return { data: true };
@@ -72,6 +110,15 @@ export async function revokeAdmin(userId: string) {
 
   if (error) return { error: error.message };
 
+  const claimError = await syncRoleClaim(userId, target.base_role as "SPEAKER" | "CLIENT");
+  if (claimError) {
+    await service
+      .from("profiles")
+      .update({ role: "ADMIN", base_role: target.base_role })
+      .eq("id", userId);
+    return { error: `Could not revoke admin access: ${claimError}` };
+  }
+
   revalidatePath("/admin/users");
   revalidatePath(`/admin/users/${userId}`);
   return { data: true };
@@ -81,10 +128,20 @@ export async function adminUpdateBookingStatus(bookingId: string, status: Bookin
   const { error: authError } = await assertAdmin();
   if (authError) return { error: authError };
 
+  if (!z.string().uuid().safeParse(bookingId).success) return { error: "Invalid booking" };
+  if (!isBookingStatus(status)) return { error: "Invalid booking status" };
+
+  // Only touch `cancelled_reason` when one is actually supplied — passing
+  // `reason ?? null` unconditionally erased the recorded reason every time an
+  // admin changed the status of an already-cancelled booking.
+  const trimmedReason = reason?.trim().slice(0, 1000);
+  const patch: { status: BookingStatus; cancelled_reason?: string | null } = { status };
+  if (trimmedReason !== undefined) patch.cancelled_reason = trimmedReason || null;
+
   const service = createServiceClient();
   const { data, error } = await service
     .from("bookings")
-    .update({ status, cancelled_reason: reason ?? null })
+    .update(patch)
     .eq("id", bookingId)
     .select()
     .single();
@@ -151,6 +208,8 @@ export async function adminCreateSpeaker(
       .from("profiles")
       .update({ role: "SPEAKER" })
       .eq("id", userId);
+    // Keep the JWT claim RLS reads in step with the table (see syncRoleClaim)
+    await syncRoleClaim(userId, "SPEAKER");
   }
 
   revalidatePath("/admin/speakers");
@@ -179,12 +238,21 @@ export async function adminSearchUsers(query: string) {
   const { error: authError } = await assertAdmin();
   if (authError) return { error: authError, data: null };
 
+  const q = typeof query === "string" ? query.trim() : "";
+  if (!q) return { data: [], error: null };
+
+  // `.or()` takes a raw PostgREST filter string. Interpolating the search
+  // term straight into it let a term containing `,` or `)` close the
+  // condition and append arbitrary ones (`x,role.eq.ADMIN`), so the term is
+  // both wildcard-escaped and quoted. Search runs as the admin's own user so
+  // RLS still applies.
+  const pattern = escapePostgrestFilterValue(containsPattern(q));
+
   const supabase = await createClient();
-  const q = query.trim().toLowerCase();
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, email, role")
-    .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
+    .or(`full_name.ilike.${pattern},email.ilike.${pattern}`)
     .neq("role", "ADMIN")
     .limit(8);
 
@@ -196,10 +264,18 @@ export async function adminSendMessage(bookingId: string, content: string) {
   const { error: authError, user } = await assertAdmin();
   if (authError) return { error: authError };
 
+  if (!z.string().uuid().safeParse(bookingId).success) return { error: "Invalid booking" };
+
+  const trimmed = typeof content === "string" ? content.trim() : "";
+  if (!trimmed) return { error: "Message cannot be empty" };
+  if (trimmed.length > MAX_ADMIN_MESSAGE_LENGTH) {
+    return { error: `Message must be ${MAX_ADMIN_MESSAGE_LENGTH} characters or fewer` };
+  }
+
   const service = createServiceClient();
   const { data, error } = await service
     .from("messages")
-    .insert({ booking_id: bookingId, sender_id: user!.id, content })
+    .insert({ booking_id: bookingId, sender_id: user!.id, content: trimmed })
     .select()
     .single();
 

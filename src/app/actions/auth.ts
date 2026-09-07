@@ -2,15 +2,52 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 
+// `role` decides both `app_metadata.role` (which RLS trusts) and
+// `profiles.role` (which the admin portal trusts), and it arrives as a plain
+// form field — the `as "SPEAKER" | "CLIENT"` cast that used to guard it is
+// erased at build time and enforces nothing. Anyone could POST `role=ADMIN`
+// to this action and self-provision a platform administrator. Only the two
+// self-service roles may ever be chosen here; ADMIN is granted exclusively
+// through `promoteToAdmin`, which itself requires an existing admin.
+const RegisterSchema = z.object({
+  full_name: z.string().trim().min(1, "Full name is required").max(120),
+  email: z.string().trim().email("Enter a valid email address").max(255),
+  password: z.string().min(8, "Password must be at least 8 characters").max(72),
+  role: z.enum(["SPEAKER", "CLIENT"]),
+  phone: z.string().trim().max(40).optional().nullable(),
+  company: z.string().trim().max(160).optional().nullable(),
+});
+
+const LoginSchema = z.object({
+  email: z.string().trim().min(1, "Email is required").max(255),
+  password: z.string().min(1, "Password is required").max(72),
+});
+
 export async function registerUser(formData: FormData) {
-  const fullName = formData.get("full_name") as string;
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
-  const role = formData.get("role") as "SPEAKER" | "CLIENT";
-  const phone = formData.get("phone") as string | null;
-  const company = formData.get("company") as string | null;
+  const parsed = RegisterSchema.safeParse({
+    full_name: formData.get("full_name"),
+    email: formData.get("email"),
+    password: formData.get("password"),
+    role: formData.get("role"),
+    phone: formData.get("phone") || null,
+    company: formData.get("company") || null,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid registration details" };
+  }
+
+  const {
+    full_name: fullName,
+    email,
+    password,
+    role,
+    phone,
+    company,
+  } = parsed.data;
 
   // Use admin API to create the user with email already confirmed.
   // This avoids sending a confirmation email (and hitting rate limits)
@@ -102,10 +139,17 @@ export async function registerUser(formData: FormData) {
 }
 
 export async function loginUser(formData: FormData) {
-  const supabase = await createClient();
+  const parsed = LoginSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
 
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid credentials" };
+  }
+
+  const { email, password } = parsed.data;
+  const supabase = await createClient();
 
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 

@@ -1,20 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { validateBookingDates } from "@/lib/utils/booking";
 
 const BookingSchema = z.object({
   speaker_id: z.string().uuid(),
-  event_name: z.string().min(1, "Event name is required"),
-  audience_demographics: z.string().min(1, "Audience demographics are required"),
-  exact_location: z.string().min(1, "Location is required"),
-  event_organiser: z.string().min(1, "Event organiser is required"),
-  associated_company: z.string().min(1, "Associated company is required"),
+  event_name: z.string().trim().min(1, "Event name is required").max(200),
+  audience_demographics: z.string().trim().min(1, "Audience demographics are required").max(2000),
+  exact_location: z.string().trim().min(1, "Location is required").max(300),
+  event_organiser: z.string().trim().min(1, "Event organiser is required").max(200),
+  associated_company: z.string().trim().min(1, "Associated company is required").max(200),
   event_date: z.string().min(1, "Event date is required"),
   event_end_date: z.string().optional(),
-  duration_minutes: z.number().int().positive().default(60),
+  duration_minutes: z
+    .number()
+    .int()
+    .min(15, "Duration must be at least 15 minutes")
+    .max(480, "Duration cannot exceed 480 minutes")
+    .default(60),
   event_format: z.enum(["in-person", "virtual", "hybrid"]),
-  estimated_audience: z.number().int().positive().optional(),
-  client_notes: z.string().optional(),
+  estimated_audience: z.number().int().positive().max(1_000_000).optional(),
+  client_notes: z.string().trim().max(4000).optional(),
   hospitality_rider_agreed: z.boolean(),
   // quoted_fee_zar intentionally excluded — fetched server-side
 });
@@ -54,6 +60,13 @@ export async function POST(request: NextRequest) {
   }
 
   const input = parsed.data;
+
+  // Calendar-date checks the schema can't express: the event must be in the
+  // future and a multi-day event must not end before it starts.
+  const dateError = validateBookingDates(input.event_date, input.event_end_date);
+  if (dateError) {
+    return NextResponse.json({ error: dateError }, { status: 422 });
+  }
 
   // Look up the speaker's authoritative fee — never trust client-supplied values
   const { data: speaker } = await supabase
