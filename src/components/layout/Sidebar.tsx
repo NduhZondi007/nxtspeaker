@@ -17,6 +17,9 @@ import {
   Users2,
   ShieldCheck,
   ArrowLeft,
+  Landmark,
+  CreditCard,
+  Banknote,
 } from "lucide-react";
 import { logoutUser } from "@/app/actions/auth";
 import { useSidebar } from "@/components/layout/SidebarContext";
@@ -40,6 +43,7 @@ const speakerNav: NavItem[] = [
   { label: "My Profile", href: "/speaker/profile", icon: User },
   { label: "Hospitality Rider", href: "/speaker/rider", icon: Utensils },
   { label: "Earnings", href: "/speaker/earnings", icon: DollarSign },
+  { label: "Payout Details", href: "/speaker/payouts", icon: Landmark },
 ];
 
 const adminNav: NavItem[] = [
@@ -47,6 +51,8 @@ const adminNav: NavItem[] = [
   { label: "Users", href: "/admin/users", icon: Users2 },
   { label: "Bookings", href: "/admin/bookings", icon: CalendarCheck },
   { label: "Speakers", href: "/admin/speakers", icon: Search },
+  { label: "Payments", href: "/admin/payments", icon: CreditCard },
+  { label: "Payouts", href: "/admin/payouts", icon: Banknote },
 ];
 
 const portalLabels: Record<UserRole, string> = {
