@@ -7,8 +7,11 @@ import { useToast } from "@/components/ui/Toast";
 import type { BookingStatus } from "@/lib/types/database";
 
 const STATUS_TOAST: Partial<Record<BookingStatus, { title: string; message?: string }>> = {
-  CONFIRMED: { title: "Booking accepted!", message: "The speaker confirmed your request." },
+  // Under escrow, acceptance is the moment payment is due — the toast says so
+  // rather than implying the booking is already settled.
+  CONFIRMED: { title: "Booking accepted!", message: "The speaker confirmed — payment is now due." },
   DECLINED: { title: "Booking declined", message: "The speaker was unable to accept this request." },
+  PAID: { title: "Payment received", message: "Your booking is confirmed and paid in full." },
   DEPOSIT_PAID: { title: "Deposit received", message: "Your booking has moved to deposit paid." },
   COMPLETED: { title: "Booking completed", message: "This event has been marked as completed." },
   CANCELLED: { title: "Booking cancelled" },

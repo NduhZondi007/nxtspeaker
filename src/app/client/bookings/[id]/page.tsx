@@ -9,7 +9,10 @@ import { ChatPanel } from "@/components/chat/ChatPanel";
 import { HospitalityRiderView } from "@/components/bookings/HospitalityRiderView";
 import { formatZAR } from "@/lib/utils/currency";
 import { sendMessage } from "@/app/actions/messages";
-import type { Booking, Message, Profile } from "@/lib/types/database";
+import { initiateBookingPayment } from "@/app/actions/payments";
+import { PaymentPanel } from "@/components/payments/PaymentPanel";
+import { toCents } from "@/lib/payments/commission";
+import type { Booking, Message, PaymentStatus, Profile } from "@/lib/types/database";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -66,10 +69,35 @@ export default async function ClientBookingDetailPage({ params }: Props) {
   const speaker     = (booking as Booking).speaker_profiles;
   const speakerName = speaker?.profiles?.full_name ?? "Speaker";
 
+  // RLS limits this to payments on the caller's own bookings.
+  const { data: payment } = await supabase
+    .from("payments")
+    .select("status, gross_amount_cents")
+    .eq("booking_id", (booking as Booking).id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const bookingStatus = (booking as Booking).status;
+  const isPaid = bookingStatus === "PAID" || bookingStatus === "COMPLETED";
+  const showPaymentPanel = bookingStatus === "CONFIRMED" || isPaid;
+
+  // Prefer the amount actually charged; fall back to the quoted fee for a
+  // booking that has no payment row yet.
+  const grossCents = payment?.gross_amount_cents
+    ? Number(payment.gross_amount_cents)
+    : toCents((booking as Booking).quoted_fee_zar);
+
   async function handleSendMessage(bookingId: string, content: string) {
     "use server";
     const result = await sendMessage(bookingId, content);
     return result.error ? { error: result.error } : {};
+  }
+
+  async function handlePay(bookingId: string) {
+    "use server";
+    const result = await initiateBookingPayment(bookingId);
+    return result as { data?: { redirectUrl: string }; error?: string };
   }
 
   return (
@@ -84,6 +112,16 @@ export default async function ClientBookingDetailPage({ params }: Props) {
 
       <div className="p-4 sm:p-6 grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
+          {showPaymentPanel && (
+            <PaymentPanel
+              bookingId={booking.id}
+              grossCents={grossCents}
+              paymentStatus={(payment?.status as PaymentStatus | undefined) ?? null}
+              isPaid={isPaid}
+              onPay={handlePay}
+            />
+          )}
+
           {/* Status card */}
           <div className="bg-white border border-line rounded-[12px] p-5">
             <div className="flex items-center justify-between mb-4">
