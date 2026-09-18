@@ -80,6 +80,11 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // `api/webhooks` is excluded deliberately. A provider webhook carries no
+    // cookies, so the Supabase session refresh below can never do anything for
+    // it — it just adds a network round-trip to the critical path of a caller
+    // that has a finite retry budget. The route does its own authentication,
+    // by verifying the request signature.
+    "/((?!_next/static|_next/image|favicon.ico|api/webhooks|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
