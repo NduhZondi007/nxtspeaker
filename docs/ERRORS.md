@@ -3,6 +3,66 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-09-18 · bug · Admin "Platform Revenue" summed only the eight most recent bookings
+
+**Type:** bug
+**Affected:** `src/app/admin/dashboard/page.tsx`
+**Severity:** medium
+
+**What happened:**
+The admin dashboard's "Platform Revenue" tile reported a figure far lower than the
+platform's actual booking value. Found while surveying the tile ahead of replacing it
+with real commission for the payment gateway.
+
+**Root cause:**
+Two independent faults in four lines. The tile reduced over `bookings`, which is the
+result of the `.limit(8)` query fetched for the "Recent Bookings" list further down the
+page — so it only ever summed the eight most recent bookings, and under-reported for
+any platform with more than eight. Separately, it summed `quoted_fee_zar`, which is
+gross booking value. That is the speakers' money passing through the platform, not the
+platform's revenue; NxtSpeaker earns the commission on it.
+
+**Fix:**
+The tile now runs its own aggregate query over `payments` where `status = 'SUCCEEDED'`
+and sums `commission_amount_cents`, relabelled "Commission Earned". A second tile,
+"Owed to Speakers", sums open payouts — under escrow that is the number that matters
+for solvency, because it is money the business holds that belongs to someone else.
+
+**Prevention:**
+A display query and an aggregate query are now distinct calls rather than one list
+being reused for both. The general rule: never reduce over a `.limit()`-ed result to
+produce a total.
+
+---
+
+## 2026-09-18 · config · `npm run lint` had been broken since the Next.js 16 upgrade
+
+**Type:** config
+**Affected:** `package.json`
+**Severity:** medium
+
+**What happened:**
+`npm run lint` failed with `Invalid project directory provided, no such directory:
+C:\...\nxtspeaker\lint`. Discovered while running the CLAUDE.md pre-commit gate, which
+requires a passing lint on every commit — meaning the gate had not actually been
+runnable for some time.
+
+**Root cause:**
+Next.js 16 removed the `next lint` command. With the subcommand gone, the Next CLI
+parsed the word `lint` as a positional path argument and looked for a project
+directory by that name. The error message never mentions linting, which is why it read
+as a path problem rather than a removed command.
+
+**Fix:**
+`"lint": "eslint ."`. `eslint.config.mjs` was already flat config, so no config
+migration was needed. Lint passes clean across the repo.
+
+**Prevention:**
+The commit gate is now genuinely executable, so a future break surfaces on the next
+commit rather than lying dormant. Worth re-running all four gate commands after any
+Next.js major upgrade — a removed CLI subcommand fails in a way that does not name
+itself.
+
 ## 2026-09-07 · bug · "Request Booking" closed the speaker card and opened nothing
 
 **Type:** bug

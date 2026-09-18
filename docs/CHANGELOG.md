@@ -8,6 +8,100 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Payment gateway — Yoco escrow with a 15% platform commission.** NxtSpeaker now
+  takes money. A client pays 100% of the quoted fee into NxtSpeaker's Yoco merchant
+  account when the speaker accepts; the platform retains 15% and owes the speaker the
+  remaining 85% once the event has been delivered.
+  - **The shaping constraint: Yoco has no payout, transfer or split API.** It settles
+    only to the merchant's own bank account. The client→platform leg is fully
+    automated; the platform→speaker leg cannot be. The app computes what is owed,
+    holds it, produces a bank-ready EFT batch, and records the reference once an admin
+    has paid it. `/admin/payouts` states this on the page itself.
+  - **Amounts are integer cents** (`BIGINT`) throughout the payment tables. Yoco's API
+    speaks cents, so the figure sent, stored and later compared against the webhook is
+    one integer — the amount re-verification is an exact comparison. `quoted_fee_zar`
+    stays `NUMERIC(12,2)` and is untouched; it is the contract price, already pinned
+    immutable by `enforce_booking_update_rules()`.
+  - **The split is exact by construction.** `splitCommission` rounds the commission and
+    gives the speaker the residual, never a second rounded multiplication — so
+    `commission + speaker === gross` for every input. A `CHECK` constraint enforces the
+    same thing in the database, and the tests assert it across every cent from 0 to
+    5000 at seven different rates. The rate is snapshotted onto each payment row, so
+    changing the platform's take later cannot restate history.
+  - New tables: `payments`, `payouts`, `webhook_events`, `speaker_payout_details`. All
+    have RLS with read policies and **deliberately no write policies** — only the
+    service role writes them, from the verified webhook or an admin action.
+  - `speaker_payout_details` is a separate table rather than columns on
+    `speaker_profiles`. That table carries "Anyone authenticated can view active
+    speakers" and is read with a wildcard select across discovery, booking detail and
+    admin surfaces, so a bank account number added there would have been readable by
+    every authenticated user the moment the migration landed.
+  - `record_successful_payment()` exists because supabase-js cannot run a
+    multi-statement transaction. It locks the payment row, re-verifies the provider's
+    amount against the priced amount, advances the booking and opens the payout
+    obligation — atomically or not at all. A mismatch parks the payment as
+    `NEEDS_REVIEW` and moves nothing.
+  - `/api/webhooks/yoco` is the only thing that confirms a payment. It reads the raw
+    body, verifies the HMAC-SHA256 signature in constant time, enforces a 3-minute
+    replay window, and dedupes on the `webhook-id` header via a unique index. It
+    verifies *before* touching the database, so a forged `webhook-id` cannot poison the
+    dedupe table and suppress the genuine event. The redirect back from Yoco writes
+    nothing.
+  - New surfaces: a client pay panel and payment-result page, `/speaker/payouts` for
+    bank details, `/admin/payments` for reconciliation, `/admin/payouts` for the manual
+    payout console.
+  - New env vars: `YOCO_SECRET_KEY`, `YOCO_WEBHOOK_SECRET`, and optional
+    `YOCO_WEBHOOK_TOLERANCE_SECONDS`. Documented in `README.md` and `CLAUDE.md`.
+  - 137 new tests covering the commission maths, signature verification (tampered,
+    expired, replayed, malformed), the checkout action's guards, webhook idempotency
+    and amount mismatch, and the admin money actions for all three roles.
+
+- **`docs/DESIGN.md` gains a "Financial surfaces" section.** It previously had no rule
+  for tables, ledgers or money breakdowns. Adds the money colour roles, an explicit
+  "orange is never a money value" rule, the gross → deduction → net breakdown layout,
+  the row-list pattern for queues, and account-number masking.
+
+### Changed
+- **New booking status `PAID`**, and completion is now gated on payment. `CONFIRMED`
+  means "accepted, awaiting payment"; only the verified webhook (service role) can
+  move a booking to `PAID`.
+  - Two speaker transitions were removed, and this is the point of the change:
+    `CONFIRMED → COMPLETED` and `CONFIRMED → DEPOSIT_PAID`. Under the old rules a
+    speaker could mark an unpaid booking delivered, after which the platform owed them
+    85% of money it had never collected.
+  - `canClientCancel` narrows to `PENDING | CONFIRMED`. Cancelling a paid booking means
+    refunding it, which is an admin action with a Yoco call behind it.
+  - `DEPOSIT_PAID` is retained so existing rows stay valid and render, but has no
+    outbound transition for any actor.
+  - The `CONFIRMED` badge now reads "Awaiting Payment".
+- **Speaker earnings show net, not gross.** The page summed gross `quoted_fee_zar` and
+  labelled it "Total Earned" — a promise the platform does not keep. It now reads the
+  payouts ledger (Paid Out / Available / In Escrow) with a per-booking
+  `Gross → −15% → You receive` breakdown, and states the commission in words.
+- **`assertAdmin` moved to `src/lib/auth/assert-admin.ts`.** It could not simply be
+  exported from `src/app/actions/admin.ts`: every export of a `"use server"` file
+  becomes a callable endpoint, so exporting it would have published an admin check
+  returning a Supabase client.
+- Middleware no longer runs a Supabase session refresh for `api/webhooks`. A provider
+  webhook carries no cookies, so the refresh could never do anything for it.
+
+### Fixed
+- **Admin "Platform Revenue" was wrong twice over.** It summed `quoted_fee_zar` — the
+  speakers' money passing through, not revenue — and computed it from the `.limit(8)`
+  recent-bookings list, so it only ever counted the eight most recent bookings. It now
+  runs its own aggregate over captured commission, and a second tile shows what is owed
+  to speakers, which under escrow is the number that matters for solvency.
+- **`npm run lint` had not worked since the Next.js 16 upgrade.** `next lint` was
+  removed in Next 16, so the script failed with "Invalid project directory provided, no
+  such directory: .../lint" — it was treating `lint` as a path. The CLAUDE.md commit
+  gate could not actually be run. Now calls the ESLint CLI against the existing flat
+  config.
+- Two pre-existing `docs/DESIGN.md` violations: the speaker earnings "Upcoming" tile and
+  the admin "Active Speakers" tile used `#FF5700`. A stat tile is not something you
+  click, so orange never belonged on either.
+
+
 ### Changed
 - **Only 100%-complete speaker profiles are shown to clients.** A speaker is
   listable when every field in `PROFILE_COMPLETENESS_FIELDS` is filled in:
