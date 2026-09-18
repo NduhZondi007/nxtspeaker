@@ -2,7 +2,8 @@ import type { BookingStatus } from "@/lib/types/database";
 
 const statusStyles: Record<BookingStatus, string> = {
   PENDING: "bg-secondary/15 text-secondary border border-secondary/30",
-  CONFIRMED: "bg-success/15 text-success border border-success/30",
+  CONFIRMED: "bg-secondary/15 text-secondary border border-secondary/30",
+  PAID: "bg-success/15 text-success border border-success/30",
   DEPOSIT_PAID: "bg-primary/10 text-primary border border-primary/20",
   COMPLETED: "bg-primary/20 text-primary border border-primary/30",
   CANCELLED: "bg-danger/15 text-danger border border-danger/30",
@@ -11,7 +12,10 @@ const statusStyles: Record<BookingStatus, string> = {
 
 const statusLabels: Record<BookingStatus, string> = {
   PENDING: "Pending",
-  CONFIRMED: "Confirmed",
+  // Under escrow, CONFIRMED means "accepted, awaiting payment" — the label
+  // says so rather than implying the booking is settled.
+  CONFIRMED: "Awaiting Payment",
+  PAID: "Paid",
   DEPOSIT_PAID: "Deposit Paid",
   COMPLETED: "Completed",
   CANCELLED: "Cancelled",

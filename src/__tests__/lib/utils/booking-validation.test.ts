@@ -34,10 +34,13 @@ describe("canSpeakerTransition", () => {
     expect(canSpeakerTransition("PENDING", "DECLINED")).toBe(true);
   });
 
-  it("lets a speaker record a deposit and complete a confirmed booking", () => {
-    expect(canSpeakerTransition("CONFIRMED", "DEPOSIT_PAID")).toBe(true);
-    expect(canSpeakerTransition("CONFIRMED", "COMPLETED")).toBe(true);
-    expect(canSpeakerTransition("DEPOSIT_PAID", "COMPLETED")).toBe(true);
+  // Escrow changed this: a speaker no longer records payment themselves, and
+  // can only close out a booking the client has actually paid for. See
+  // booking-paid-status.test.ts for the full PAID machine.
+  it("lets a speaker complete a paid booking, but not an unpaid one", () => {
+    expect(canSpeakerTransition("PAID", "COMPLETED")).toBe(true);
+    expect(canSpeakerTransition("CONFIRMED", "COMPLETED")).toBe(false);
+    expect(canSpeakerTransition("CONFIRMED", "DEPOSIT_PAID")).toBe(false);
   });
 
   it("does not let a speaker cancel — that is the client's action", () => {
@@ -65,10 +68,12 @@ describe("canSpeakerTransition", () => {
 });
 
 describe("canClientCancel", () => {
-  it("allows cancelling a live booking", () => {
+  // Escrow narrowed this: once the client's money is in, withdrawing means
+  // refunding, which is an admin action with a Yoco call behind it.
+  it("allows cancelling a live booking before payment", () => {
     expect(canClientCancel("PENDING")).toBe(true);
     expect(canClientCancel("CONFIRMED")).toBe(true);
-    expect(canClientCancel("DEPOSIT_PAID")).toBe(true);
+    expect(canClientCancel("PAID")).toBe(false);
   });
 
   it("refuses to cancel a booking that already ended", () => {

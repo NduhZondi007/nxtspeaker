@@ -4,6 +4,7 @@ export function getBookingStatusColor(status: BookingStatus): string {
   const colors: Record<BookingStatus, string> = {
     PENDING: "#A88C7C",
     CONFIRMED: "#6B9E78",
+    PAID: "#6B9E78",
     DEPOSIT_PAID: "#8BA888",
     COMPLETED: "#8C7CA8",
     CANCELLED: "#C47A6A",
@@ -16,6 +17,7 @@ export function getBookingStatusLabel(status: BookingStatus): string {
   const labels: Record<BookingStatus, string> = {
     PENDING: "Pending",
     CONFIRMED: "Confirmed",
+    PAID: "Paid",
     DEPOSIT_PAID: "Deposit Paid",
     COMPLETED: "Completed",
     CANCELLED: "Cancelled",
@@ -32,6 +34,7 @@ export function canChat(status: BookingStatus): boolean {
 export const BOOKING_STATUSES: readonly BookingStatus[] = [
   "PENDING",
   "CONFIRMED",
+  "PAID",
   "DEPOSIT_PAID",
   "COMPLETED",
   "CANCELLED",
@@ -49,14 +52,26 @@ export function isBookingStatus(value: unknown): value is BookingStatus {
 
 /**
  * Status changes a speaker is allowed to make on their own booking.
- * A speaker accepts, declines, records a deposit, or closes out a delivered
- * event — they never cancel (that is the client's action) and never move a
- * booking backwards or out of a terminal state.
+ * A speaker accepts, declines, or closes out a delivered event — they never
+ * cancel (that is the client's action) and never move a booking backwards or
+ * out of a terminal state.
+ *
+ * Under escrow a speaker cannot declare that money arrived, and cannot close
+ * out a booking that has not been paid. `CONFIRMED -> PAID` belongs to the
+ * verified Yoco webhook alone; `CONFIRMED -> COMPLETED` is gone because it
+ * would have left the platform owing 85% of money it never collected.
+ *
+ * Mirrors the SQL state machine in
+ * supabase/migrations/20260918120200_booking-paid-status.sql. The two are one
+ * machine written twice — change them together.
  */
 const SPEAKER_TRANSITIONS: Record<BookingStatus, readonly BookingStatus[]> = {
   PENDING: ["CONFIRMED", "DECLINED"],
-  CONFIRMED: ["DEPOSIT_PAID", "COMPLETED"],
-  DEPOSIT_PAID: ["COMPLETED"],
+  CONFIRMED: [],
+  PAID: ["COMPLETED"],
+  // Legacy dead end: predates the payment gateway, retained so existing rows
+  // still render. Only an admin (service role) can move these on.
+  DEPOSIT_PAID: [],
   COMPLETED: [],
   CANCELLED: [],
   DECLINED: [],
@@ -66,9 +81,13 @@ export function canSpeakerTransition(from: BookingStatus, to: BookingStatus): bo
   return SPEAKER_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
-/** A client may withdraw a booking only while it is still live. */
+/**
+ * A client may withdraw a booking only before their money has moved.
+ * Cancelling a PAID booking means refunding it, which is an admin action with
+ * a Yoco API call behind it — not a one-click self-service transition.
+ */
 export function canClientCancel(from: BookingStatus): boolean {
-  return from === "PENDING" || from === "CONFIRMED" || from === "DEPOSIT_PAID";
+  return from === "PENDING" || from === "CONFIRMED";
 }
 
 /**
