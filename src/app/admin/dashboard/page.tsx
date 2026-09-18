@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Users2, Mic2, CalendarCheck, DollarSign, Eye, ChevronRight } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { Users2, Mic2, CalendarCheck, DollarSign, Wallet, Eye, ChevronRight } from "lucide-react";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { formatZAR } from "@/lib/utils/currency";
+import { formatZARCents } from "@/lib/utils/currency";
 import type { Booking, Profile } from "@/lib/types/database";
 
 export default async function AdminDashboardPage() {
@@ -38,15 +38,39 @@ export default async function AdminDashboardPage() {
   const bookings = (rawBookings ?? []) as Booking[];
   const users = (recentUsers ?? []) as Profile[];
 
-  const revenue = bookings
-    .filter((b) => b.status === "COMPLETED")
-    .reduce((sum, b) => sum + Number(b.quoted_fee_zar), 0);
+  // Revenue is the platform's 15% commission on payments actually captured —
+  // not gross booking value, which is the speakers' money passing through.
+  //
+  // This used to be computed from `bookings`, which is the .limit(8) recent
+  // list above, so the tile only ever summed the eight most recent bookings.
+  // It needs its own query.
+  const service = createServiceClient();
+  const { data: capturedPayments } = await service
+    .from("payments")
+    .select("commission_amount_cents, speaker_amount_cents")
+    .eq("status", "SUCCEEDED");
+
+  const commission = (capturedPayments ?? []).reduce(
+    (sum, p) => sum + Number(p.commission_amount_cents),
+    0
+  );
+
+  const { data: openPayouts } = await service
+    .from("payouts")
+    .select("amount_cents")
+    .in("status", ["PENDING", "DUE", "ON_HOLD"]);
+
+  // Under escrow this is the number that matters for solvency: money the
+  // platform is holding that belongs to somebody else.
+  const owedToSpeakers = (openPayouts ?? []).reduce((sum, p) => sum + Number(p.amount_cents), 0);
 
   const stats = [
     { label: "Total Users", value: String(userCount ?? 0), icon: Users2, color: "#629DAB" },
-    { label: "Active Speakers", value: String(speakerCount ?? 0), icon: Mic2, color: "#FF5700" },
+    // Not orange: a stat tile is not a thing you click. See docs/DESIGN.md.
+    { label: "Active Speakers", value: String(speakerCount ?? 0), icon: Mic2, color: "#629DAB" },
     { label: "Total Bookings", value: String(bookingCount ?? 0), icon: CalendarCheck, color: "#031E57" },
-    { label: "Platform Revenue", value: formatZAR(revenue), icon: DollarSign, color: "#629DAB" },
+    { label: "Commission Earned", value: formatZARCents(commission), icon: DollarSign, color: "#6B9E78" },
+    { label: "Owed to Speakers", value: formatZARCents(owedToSpeakers), icon: Wallet, color: "#629DAB" },
   ];
 
   return (
@@ -55,7 +79,7 @@ export default async function AdminDashboardPage() {
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {stats.map((stat) => {
             const Icon = stat.icon;
             return (
