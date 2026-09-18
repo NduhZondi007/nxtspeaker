@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { assertAdmin } from "@/lib/auth/assert-admin";
 import { isBookingStatus } from "@/lib/utils/booking";
 import { containsPattern, escapePostgrestFilterValue } from "@/lib/utils/postgrest";
 import type { BookingStatus, SpeakerProfileFormData } from "@/lib/types/database";
@@ -32,21 +33,6 @@ async function syncRoleClaim(userId: string, role: "ADMIN" | "SPEAKER" | "CLIENT
   return error?.message ?? null;
 }
 
-async function assertAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" as const, user: null, supabase: null };
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "ADMIN") return { error: "Admin access required" as const, user: null, supabase: null };
-
-  return { error: null, user, supabase };
-}
 
 export async function promoteToAdmin(userId: string) {
   const { error: authError, user } = await assertAdmin();
