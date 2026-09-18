@@ -324,8 +324,13 @@ At the end of the session, output a handover block:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Client + server + middleware | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server only — never expose to client | Yes |
 | `NEXT_PUBLIC_APP_URL` | Auth redirects | Yes (prod) |
+| `YOCO_SECRET_KEY` | Server only — Yoco checkout + refund API | Yes |
+| `YOCO_WEBHOOK_SECRET` | Server only — verifies the payment webhook | Yes |
+| `YOCO_WEBHOOK_TOLERANCE_SECONDS` | Webhook replay window in seconds (default 180) | No |
 
-**Vercel:** All four must be set under Settings → Environment Variables → Production.
+**Vercel:** All required variables must be set under Settings → Environment Variables → Production.
+
+**Never give a Yoco variable a `NEXT_PUBLIC_` prefix.** That prefix is what tells Next.js to inline a value into the client bundle; the secret key would ship to every browser. `src/lib/payments/config.ts` also throws if it is imported into a client component.
 
 ---
 

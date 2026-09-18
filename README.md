@@ -80,11 +80,17 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 NEXT_PUBLIC_APP_URL=http://localhost:3000   # use your custom domain in production
+
+# Yoco — payments. Server-only; use the test key until the flow is verified.
+YOCO_SECRET_KEY=sk_test_...
+YOCO_WEBHOOK_SECRET=whsec_...
+# Optional — webhook replay window in seconds (default 180)
+# YOCO_WEBHOOK_TOLERANCE_SECONDS=180
 ```
 
-Find these values in your Supabase project under **Settings → API**.
+Find the Supabase values in your project under **Settings → API**. Find the Yoco values in the [Yoco portal](https://portal.yoco.com) under **Sell Online → Developers**; `YOCO_WEBHOOK_SECRET` is returned when you register the webhook endpoint at `<your-url>/api/webhooks/yoco`.
 
-> **Security:** `SUPABASE_SERVICE_ROLE_KEY` is never exposed to the browser. It is used only in server-side code (Next.js Server Actions and API routes). Never prefix it with `NEXT_PUBLIC_`.
+> **Security:** `SUPABASE_SERVICE_ROLE_KEY`, `YOCO_SECRET_KEY` and `YOCO_WEBHOOK_SECRET` are never exposed to the browser. They are used only in server-side code (Next.js Server Actions and API routes). Never prefix any of them with `NEXT_PUBLIC_` — that prefix is precisely what tells Next.js to inline a value into the client bundle.
 
 ### 4. Set up the database
 
@@ -168,6 +174,9 @@ In **Settings → Environment Variables** on the Vercel dashboard, add all four 
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous (publishable) key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only, never prefix with `NEXT_PUBLIC_`) |
 | `NEXT_PUBLIC_APP_URL` | Your production URL — Vercel deployment URL or custom domain (e.g. `https://imvunulo.co.za`) |
+| `YOCO_SECRET_KEY` | Yoco secret key for creating checkouts and refunds (server-only, never prefix with `NEXT_PUBLIC_`) |
+| `YOCO_WEBHOOK_SECRET` | Yoco webhook signing secret, `whsec_…` (server-only). Without it, payments cannot be confirmed |
+| `YOCO_WEBHOOK_TOLERANCE_SECONDS` | Optional. Webhook replay window in seconds, default `180` |
 
 ### 4. Update Supabase Auth for production
 
