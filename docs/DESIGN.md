@@ -146,6 +146,56 @@ Three variants, all pill radius (`--radius-pill`):
 
 Alternate between `--color-tertiary` (white) and `--color-bg-soft` (off-white `#FAFAFB`) for visual separation. Use navy dark bands sparingly for hero moments only.
 
+### Financial surfaces
+
+Money is the one place where a wrong colour reads as a wrong number. These rules
+cover payments, payouts, commission breakdowns and reconciliation views.
+
+**Money values** — always Space Mono, always via `formatZAR` / `formatZARCents`
+(`src/lib/utils/currency.ts`). Never hand-format an amount, and never use
+`toLocaleString`: the en-ZA separator is engine-dependent and causes hydration
+mismatches.
+
+| Role | Colour | Weight | Use |
+|------|--------|--------|-----|
+| **Gross / headline amount** | `--color-ink` | 700 | The full fee a client pays |
+| **Deduction** (commission, fee) | `--color-muted` | 400, prefixed `−` | Anything subtracted |
+| **Net / payable** | `--color-secondary` | 700 | What a speaker actually receives |
+| **Reversal / refund** | `--color-danger` | 700, prefixed `−` | Money going back out |
+| **Settled / paid out** | `--color-success` | 700 | Confirmed complete |
+
+**Orange is never used on a money value** — not on a total, not on a net figure, not
+on a "Platform Revenue" tile. Orange marks only the button a user presses to move
+money ("Pay now", "Mark as paid", "Approve refund"). One such button per view section.
+
+**Breakdown rows** show the full arithmetic, never just the net — a speaker must never
+discover the 15% by subtraction:
+
+```
+Gross          R 10,000
+Platform 15%   − R 1,500
+────────────────────────
+You receive    R 8,500
+```
+
+The rule line is `border-t border-line`; the label column is Hanken Grotesk, the value
+column Space Mono, right-aligned, tabular.
+
+**Ledger and queue lists** use the same row-list pattern as every other list surface in
+the app — `divide-y divide-line` inside a `bg-white border border-line` card — not an
+HTML `<table>`. Each row: description left, amount right, status badge under the amount.
+
+**Status badges** reuse the `Badge` / `BookingStatusBadge` conventions: pill radius,
+Space Mono uppercase, tinted `bg/15` + `text` + `border/30` of the semantic token above.
+
+**Exceptions** (amount mismatch, failed webhook, stuck refund) render in a distinct card
+with a `--color-danger` hairline at the top and must never be silently collapsed into a
+normal row — an unreconciled payment should be visually impossible to miss.
+
+**Sensitive values.** Bank account numbers are masked to the last 4 digits everywhere
+except the speaker's own banking form (`••••  ••••  1234`). Never render a full account
+number in an admin list or an export preview.
+
 ---
 
 ## Logo assets
@@ -206,6 +256,8 @@ All assets live in `styling_assets/assets/`. Copy required variants into `public
 - Use rounded corners beyond `--radius-lg` (8px) except for pills and avatars
 - Put large blocks of orange anywhere on the page
 - Introduce new colours outside the token set without updating this file first
+- Colour a money value orange — see Financial surfaces
+- Render a full bank account number outside the speaker's own banking form
 
 ---
 
@@ -219,8 +271,9 @@ Before writing any UI code for a new component or page:
 - [ ] Spacing follows the 4px grid
 - [ ] Logo variant matches background colour
 - [ ] Component spec matches the table above (buttons, cards, chips, search)
+- [ ] Money values follow Financial surfaces (Space Mono, `formatZAR`, never orange)
 - [ ] No new colours introduced without updating this file
 
 ---
 
-*Source: `styling_assets/HANDOFF.md` and `styling_assets/assets/`. Last reviewed: 2026-06-23.*
+*Source: `styling_assets/HANDOFF.md` and `styling_assets/assets/`. Last reviewed: 2026-09-18.*
