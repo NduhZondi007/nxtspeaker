@@ -4,6 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("auth");
+
+// One message for every createUser failure. Echoing the provider's message
+// ("A user with this email address has already been registered") turned the
+// sign-up form into an oracle for which emails hold accounts.
+const REGISTER_FAILED = "Could not create account. If you already have an account, sign in.";
 
 // `role` decides both `app_metadata.role` (which RLS trusts) and
 // `profiles.role` (which the admin portal trusts), and it arrives as a plain
@@ -67,7 +75,8 @@ export async function registerUser(formData: FormData) {
   });
 
   if (adminError) {
-    return { error: adminError.message };
+    log.error("createUser failed", { cause: adminError });
+    return { error: REGISTER_FAILED };
   }
 
   if (!adminData.user) {
@@ -77,7 +86,7 @@ export async function registerUser(formData: FormData) {
   const userId = adminData.user.id;
 
   // Upsert the profile row (safety net in case the DB trigger hasn't run)
-  await service.from("profiles").upsert(
+  const { error: profileUpsertError } = await service.from("profiles").upsert(
     {
       id: userId,
       full_name: fullName,
@@ -88,6 +97,7 @@ export async function registerUser(formData: FormData) {
     },
     { onConflict: "id" }
   );
+  if (profileUpsertError) log.error("register profile upsert failed", { cause: profileUpsertError });
 
   if (role === "SPEAKER") {
     const { data: existingSp } = await service
@@ -99,11 +109,12 @@ export async function registerUser(formData: FormData) {
     let speakerProfileId = existingSp?.id ?? null;
 
     if (!existingSp) {
-      const { data: newSp } = await service
+      const { data: newSp, error: spInsertError } = await service
         .from("speaker_profiles")
         .insert({ user_id: userId, title: "Professional Speaker", speaking_fee_zar: 0 })
         .select("id")
         .single();
+      if (spInsertError) log.error("register speaker_profiles insert failed", { cause: spInsertError });
       speakerProfileId = newSp?.id ?? null;
     }
 
@@ -115,7 +126,11 @@ export async function registerUser(formData: FormData) {
         .single();
 
       if (!existingRider) {
-        await service.from("hospitality_riders").insert({ speaker_id: speakerProfileId });
+        // Not fatal: updateRider upserts, so the speaker can still create one.
+        const { error: riderError } = await service
+          .from("hospitality_riders")
+          .insert({ speaker_id: speakerProfileId });
+        if (riderError) log.error("register hospitality_riders insert failed", { cause: riderError });
       }
     }
   }
@@ -154,7 +169,13 @@ export async function loginUser(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return { error: error.message };
+    // Supabase's messages differ for "unconfirmed" vs "wrong password", which
+    // tells a caller the account exists. Only rate limiting gets its own text.
+    log.warn("signInWithPassword failed", { code: (error as { code?: string }).code });
+    if ((error as { status?: number }).status === 429) {
+      return { error: "Too many sign-in attempts. Please wait a minute and try again." };
+    }
+    return { error: "Incorrect email or password." };
   }
 
   const {
@@ -165,19 +186,37 @@ export async function loginUser(formData: FormData) {
     return { error: "Login failed. Please try again." };
   }
 
-  let { data: profile } = await supabase
+  const { data: existing, error: profileError } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
-  // If profile missing, recreate from trusted app_metadata (set by service role at registration)
+  // Only a GENUINE no-row may trigger the recovery upsert below. Treating a
+  // failed read (timeout, RLS hiccup) as "missing" used to rewrite a real
+  // profile with the registration-time metadata, using the service role.
+  // PGRST116 is what `.single()` reports for zero rows; accept it too.
+  const isNoRow = !profileError || (profileError as { code?: string }).code === "PGRST116";
+  if (profileError && !isNoRow) {
+    log.error("profile read failed during login", { cause: profileError });
+    return { error: "Could not load your profile. Please try again." };
+  }
+
+  let profile = existing;
+
+  // Missing profile: recreate from trusted app_metadata (set by service role at
+  // registration). ignoreDuplicates makes this INSERT ... ON CONFLICT DO
+  // NOTHING, so a row that appeared concurrently is never overwritten.
   if (!profile) {
     const appMeta = user.app_metadata ?? {};
     const userMeta = user.user_metadata ?? {};
-    const role = (appMeta.role as "SPEAKER" | "CLIENT") ?? "CLIENT";
+    // app_metadata is writable only by the service role, so it is trusted;
+    // anything unrecognised falls back to the least-privileged role.
+    const role = ["SPEAKER", "CLIENT", "ADMIN"].includes(appMeta.role as string)
+      ? (appMeta.role as "SPEAKER" | "CLIENT" | "ADMIN")
+      : "CLIENT";
     const service = createServiceClient();
-    await service.from("profiles").upsert(
+    const { error: upsertError } = await service.from("profiles").upsert(
       {
         id: user.id,
         full_name: userMeta.full_name ?? "",
@@ -186,13 +225,16 @@ export async function loginUser(formData: FormData) {
         phone: userMeta.phone ?? null,
         company: userMeta.company ?? null,
       },
-      { onConflict: "id" }
+      { onConflict: "id", ignoreDuplicates: true }
     );
-    const { data: recovered } = await supabase
+    if (upsertError) log.error("profile recovery upsert failed", { cause: upsertError });
+
+    const { data: recovered, error: recoverError } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
+    if (recoverError) log.error("profile re-read failed during login", { cause: recoverError });
     profile = recovered;
   }
 
