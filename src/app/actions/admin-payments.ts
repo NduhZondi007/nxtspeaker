@@ -5,6 +5,9 @@ import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
 import { assertAdmin } from "@/lib/auth/assert-admin";
 import { getPaymentProvider } from "@/lib/payments";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("admin-payments");
 
 /**
  * Admin-only money operations.
@@ -164,7 +167,7 @@ export async function adminRefundPayment(paymentId: string, reason: string) {
       `nxts_refund_${payment.id}`
     );
   } catch (cause) {
-    console.error("[admin-payments] provider threw while refunding", cause);
+    log.error("provider threw while refunding", { cause });
     return { error: "The payment provider is unavailable right now." };
   }
 

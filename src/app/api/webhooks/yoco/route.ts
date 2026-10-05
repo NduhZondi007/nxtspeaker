@@ -2,6 +2,9 @@ import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getPaymentProvider } from "@/lib/payments";
 import { getYocoWebhookSecret, getWebhookToleranceSeconds } from "@/lib/payments/config";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("yoco-webhook");
 
 /**
  * Yoco payment webhook.
@@ -103,7 +106,7 @@ export async function POST(request: Request): Promise<Response> {
 
   if (!verdict.ok) {
     // Never log the body or the secret — only why it was refused.
-    console.warn(`[yoco-webhook] rejected: ${verdict.reason}`);
+    log.warn("rejected", { reason: verdict.reason });
     return Response.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -111,7 +114,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     parsedBody = JSON.parse(rawBody);
   } catch {
-    console.warn("[yoco-webhook] signed request carried an unparseable body");
+    log.warn("signed request carried an unparseable body");
     return Response.json({ error: "Malformed payload" }, { status: 400 });
   }
 
@@ -170,7 +173,7 @@ export async function POST(request: Request): Promise<Response> {
       : await lookup.eq("provider_checkout_id", event.checkoutId ?? "").maybeSingle();
 
     if (!payment) {
-      console.error("[yoco-webhook] could not resolve a payment for event", webhookId);
+      log.error("could not resolve a payment for event", { webhookId });
       await markProcessed(service, eventRowId, "payment_not_found");
       return Response.json({ status: "unmatched" }, { status: 200 });
     }
@@ -200,7 +203,7 @@ export async function POST(request: Request): Promise<Response> {
   } catch (cause) {
     // A transient internal failure is the one case where Yoco's retries help,
     // so this is the only path that returns 500.
-    console.error("[yoco-webhook] failed to process event", cause);
+    log.error("failed to process event", { cause });
     return Response.json({ error: "Processing failed" }, { status: 500 });
   }
 }

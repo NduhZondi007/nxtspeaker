@@ -16,6 +16,9 @@ import { createBooking } from "@/app/actions/bookings";
 import { getSpeakers, DEFAULT_SPEAKER_FILTERS } from "@/lib/data/speakers";
 import type { SpeakerProfile, Review, HospitalityRider, Profile } from "@/lib/types/database";
 import type { BookingFormData } from "@/components/bookings/BookingForm";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("discover");
 
 interface DiscoverClientProps {
   initialSpeakers: SpeakerProfile[];
@@ -61,7 +64,7 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
       const { data, error: speakerFetchError } = await getSpeakers(supabase, filters);
       if (stale) return;
       if (speakerFetchError) {
-        console.error("[discover] speaker_profiles fetch failed:", speakerFetchError);
+        log.error("speaker_profiles fetch failed", { cause: speakerFetchError });
       }
       setSpeakers(data);
       setLoading(false);
@@ -107,7 +110,7 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
         // simply has no rider configured; log it, but still open the wizard
         // with rider: null (BookingForm already handles that gracefully)
         // rather than stranding the client with no path forward.
-        console.error("[discover] hospitality_riders fetch failed:", riderError);
+        log.error("hospitality_riders fetch failed", { cause: riderError });
       }
       rider = (data as HospitalityRider) ?? null;
     } catch (err) {
@@ -115,7 +118,7 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
       // exception) — not just resolving with an error — must not leave
       // bookingLoading stuck true forever with the button spinning and the
       // wizard never opening. Same fallback as the error-return path above.
-      console.error("[discover] hospitality_riders fetch threw:", err);
+      log.error("hospitality_riders fetch threw", { cause: err });
     }
 
     // AuthProvider swallows the error from its own profiles fetch, so `profile`
@@ -132,12 +135,12 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
             .eq("id", user.id)
             .maybeSingle();
           if (profileError) {
-            console.error("[discover] profile re-fetch failed:", profileError);
+            log.error("profile re-fetch failed", { cause: profileError });
           }
           setBookingClientProfile((freshProfile as Profile) ?? null);
         }
       } catch (err) {
-        console.error("[discover] profile re-fetch threw:", err);
+        log.error("profile re-fetch threw", { cause: err });
       }
     }
 
@@ -174,7 +177,7 @@ export function DiscoverClient({ initialSpeakers }: DiscoverClientProps) {
       // own local `finally` still re-enables its submit button either way,
       // but without this catch the user gets no toast at all, success or
       // error, and no idea whether the request went through.
-      console.error("[discover] createBooking threw:", err);
+      log.error("createBooking threw", { cause: err });
       error("Booking failed", "Something went wrong — please try again.");
     }
   }

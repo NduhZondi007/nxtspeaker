@@ -23,6 +23,13 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    // Operational logging goes through src/lib/logger.ts (structured, searchable
+    // in Vercel). A stray console.log is a leftover; tests may spy freely.
+    files: ["src/**/*.{ts,tsx}", "middleware.ts"],
+    ignores: ["src/__tests__/**"],
+    rules: { "no-console": "error" },
+  },
 ]);
 
 export default eslintConfig;
