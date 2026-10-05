@@ -3,6 +3,35 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-10-05 · security · Every speaker's email and phone readable by any signed-in user
+
+**Type:** security
+**Affected:** `profiles` RLS, `src/lib/data/speakers.ts`, client dashboard, `createBooking`
+**Severity:** high
+
+**What happened:**
+The audit found the policy "Authenticated users can view speaker profiles" granted
+SELECT on the whole `profiles` row of every ACTIVE speaker to any signed-in user. One
+registration was enough to list every speaker's email and phone straight from PostgREST,
+which also lets clients take bookings off-platform around the escrow.
+
+**Root cause:**
+Discovery needed a speaker's name and photo and got them by embedding `profiles(...)`.
+RLS is row-level: the only way to make that embed work was to open the whole row,
+contact columns included.
+
+**Fix:**
+`speaker_profiles` now carries its own public `display_name` / `display_avatar_url`,
+filled on insert and synced on rename by trigger, not user-writable (20261005140000).
+The app reads those (`withPublicIdentity`), and 20261005160000 drops the broad policy.
+
+**Prevention:**
+`supabase/tests/30_speaker_identity.test.sql` asserts a stranger reads 0 speaker
+contact rows while counterparties, the speaker and admins still can. Public columns are
+listed explicitly in `PUBLIC_SPEAKER_COLUMNS`; a unit test fails if `profiles(` appears.
+
+---
+
 ## 2026-10-05 · security · INSERT paths on bookings and speaker_profiles were unguarded
 
 **Type:** security
