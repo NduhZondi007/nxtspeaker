@@ -3,6 +3,34 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-10-05 · performance · Booking chat waited on two round trips per message
+
+**Type:** performance
+**Affected:** `src/components/chat/ChatInput.tsx`, `ChatPanel.tsx`, `src/lib/hooks/useRealtimeMessages.ts`, the four chat page handlers
+**Severity:** medium
+
+**What happened:**
+Users reported the chat box as slow and lagging. After pressing Enter, the message took
+noticeably long to appear, and the text box was greyed out and lost focus until it did.
+
+**Root cause:**
+`sendMessage` returned the inserted row, but every page's handler discarded it, so the
+thread only updated when the Realtime INSERT came back. That is a second round trip,
+gated by a per-subscriber RLS check, plus a `profiles` query the first time a sender
+appeared (including the viewer). `ChatInput` disabled the textarea for the whole wait.
+
+**Fix:**
+Handlers return `{ data }`; `ChatPanel` appends it via `appendMessage`, de-duplicated by
+id against the Realtime copy. The profile cache is seeded with the current user. The
+textarea is never disabled by an in-flight send, clears immediately and restores the text
+on failure. Removed `transition-all` on the textarea and the smooth scroll on first load.
+
+**Prevention:**
+`ChatInput`, `ChatPanel` and `useRealtimeMessages` tests assert the message renders from
+`onSend` alone, the box stays enabled and focused, and no profile lookup for own messages.
+
+---
+
 ## 2026-10-05 · bug · Apple touch icon was never served
 
 **Type:** bug

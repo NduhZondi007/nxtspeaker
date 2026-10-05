@@ -87,7 +87,7 @@ export default async function SpeakerBookingDetailPage({ params }: Props) {
   async function handleSendMessage(bookingId: string, content: string) {
     "use server";
     const result = await sendMessage(bookingId, content);
-    return result.error ? { error: result.error } : {};
+    return result.error ? { error: result.error } : { data: result.data as Message };
   }
 
   return (

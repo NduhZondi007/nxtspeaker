@@ -60,7 +60,7 @@ export default async function ClientChatPage({ params }: Props) {
   async function handleSendMessage(id: string, content: string) {
     "use server";
     const result = await sendMessage(id, content);
-    return result.error ? { error: result.error } : {};
+    return result.error ? { error: result.error } : { data: result.data as Message };
   }
 
   return (

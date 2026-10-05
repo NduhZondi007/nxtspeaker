@@ -4,9 +4,12 @@ import { useState, useRef, type KeyboardEvent } from "react";
 import { Send } from "lucide-react";
 import { BrandMentionCard } from "./BrandMentionCard";
 import { useToast } from "@/components/ui/Toast";
+import type { Message } from "@/lib/types/database";
 
 export interface SendResult {
   error?: string;
+  /** The stored message, so the thread can show it without waiting on realtime. */
+  data?: Message;
 }
 
 interface ChatInputProps {
@@ -26,25 +29,25 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     const trimmed = value.trim();
     if (!trimmed || sending) return;
     setSending(true);
+    // Clear straight away and keep the box enabled: disabling it for the
+    // round trip blocked typing and dropped focus after every send.
+    setValue("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+
+    // A failed send must not lose what the user wrote — put it back, unless
+    // they have already started typing something new.
+    function restore(reason: string) {
+      setValue((current) => current || trimmed);
+      error("Message not sent", reason);
+    }
+
     try {
       const result = await onSend(trimmed);
-      // Only clear the box once the send actually succeeded — a failed send
-      // used to wipe the message the user had typed with no explanation and
-      // nothing appearing in the thread.
-      if (result?.error) {
-        error("Message not sent", result.error);
-        return;
-      }
-      setValue("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
+      if (result?.error) restore(result.error);
     } catch (err) {
-      console.error("[chat] sendMessage failed:", err);
-      error(
-        "Message not sent",
-        err instanceof Error ? err.message : "Please try again."
-      );
+      restore(err instanceof Error ? err.message : "Please try again.");
     } finally {
       setSending(false);
     }
@@ -74,14 +77,15 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
-        disabled={disabled || sending}
+        disabled={disabled}
         rows={1}
         placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
-        className="flex-1 resize-none px-3 py-2.5 text-sm border border-line rounded-[8px] bg-white text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all disabled:opacity-50"
+        className="flex-1 resize-none px-3 py-2.5 text-sm border border-line rounded-[8px] bg-white text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-colors disabled:opacity-50"
         style={{ minHeight: "42px", maxHeight: "120px" }}
       />
       <button
         onClick={handleSend}
+        aria-label="Send message"
         disabled={!value.trim() || disabled || sending}
         className="w-10 h-10 rounded-[8px] bg-primary text-white flex items-center justify-center transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
       >

@@ -76,7 +76,7 @@ export default async function AdminBookingDetailPage({ params }: Props) {
   async function handleSendMessage(bookingId: string, content: string) {
     "use server";
     const result = await adminSendMessage(bookingId, content);
-    return result.error ? { error: result.error } : {};
+    return result.error ? { error: result.error } : { data: result.data as Message };
   }
 
   return (
