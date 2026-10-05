@@ -14,7 +14,8 @@ vi.mock("@/lib/supabase/server", () => ({
   createServiceClient: () => makeFakeClient(),
 }));
 
-vi.mock("@/lib/env", () => ({ getBaseUrl: () => "https://nxtspeaker.co.za" }));
+const getBaseUrl = vi.fn(() => "https://nxtspeaker.co.za");
+vi.mock("@/lib/env", () => ({ getBaseUrl: () => getBaseUrl() }));
 
 const createCheckout = vi.fn();
 const refundCheckout = vi.fn();
@@ -26,7 +27,7 @@ vi.mock("@/lib/payments", () => ({
   getPaymentProvider: () => ({ name: "yoco", createCheckout, refundCheckout }),
 }));
 
-import { initiateBookingPayment } from "@/app/actions/payments";
+import { initiateBookingPayment, saveSpeakerPayoutDetails } from "@/app/actions/payments";
 
 const CLIENT_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_CLIENT = "99999999-9999-4999-8999-999999999999";
@@ -88,6 +89,10 @@ beforeEach(() => {
   createCheckout.mockReset();
   refundCheckout.mockReset();
   supabaseState.user = { id: CLIENT_ID };
+  getBaseUrl.mockReset();
+  getBaseUrl.mockImplementation(() => "https://nxtspeaker.co.za");
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 describe("initiateBookingPayment / authorisation", () => {
@@ -349,6 +354,177 @@ describe("initiateBookingPayment / fee data quality", () => {
 
     expect(result).toHaveProperty("error");
     expect(createCheckout).not.toHaveBeenCalled();
+  });
+});
+
+describe("initiateBookingPayment / payment under review", () => {
+  // NEEDS_REVIEW means money may already have arrived (e.g. an amount
+  // mismatch). Opening a fresh checkout would let the client pay twice.
+  it("refuses a new checkout while a payment is under review", async () => {
+    stubBooking(confirmedBooking());
+    stubPayments({ id: "p-review", status: "NEEDS_REVIEW", redirect_url: null });
+
+    const result = await initiateBookingPayment(BOOKING_ID);
+
+    expect("error" in result && result.error).toMatch(/being reviewed/i);
+    expect(createCheckout).not.toHaveBeenCalled();
+    expect(supabaseState.writes).toHaveLength(0);
+  });
+
+  it("includes NEEDS_REVIEW in the statuses it looks for", async () => {
+    stubBooking(confirmedBooking());
+    const selects: QueryState["filters"][] = [];
+    supabaseState.responders.payments = (state: QueryState) => {
+      if (state.op === "select") selects.push({ ...state.filters });
+      return { data: null, error: null };
+    };
+    okCheckout();
+
+    await initiateBookingPayment(BOOKING_ID);
+
+    expect(selects[0]["status:in"]).toContain("NEEDS_REVIEW");
+  });
+});
+
+describe("initiateBookingPayment / database errors", () => {
+  it("reports a failed booking read instead of 'not found'", async () => {
+    supabaseState.responders.bookings = () => ({
+      data: null,
+      error: { code: "57014", message: "canceling statement due to statement timeout" },
+    });
+
+    const result = await initiateBookingPayment(BOOKING_ID);
+
+    expect("error" in result && result.error).not.toMatch(/not found/i);
+    expect("error" in result && result.error).not.toMatch(/statement timeout/);
+    expect(createCheckout).not.toHaveBeenCalled();
+  });
+
+  it("does not open a checkout when the existing-payment lookup errors", async () => {
+    stubBooking(confirmedBooking());
+    supabaseState.responders.payments = (state: QueryState) =>
+      state.op === "select"
+        ? { data: null, error: { code: "57014", message: "timeout" } }
+        : { data: null, error: null };
+
+    const result = await initiateBookingPayment(BOOKING_ID);
+
+    expect(result).toHaveProperty("error");
+    expect(createCheckout).not.toHaveBeenCalled();
+    expect(supabaseState.writes).toHaveLength(0);
+  });
+});
+
+describe("initiateBookingPayment / no stuck CREATED rows", () => {
+  // A row left in CREATED holds the one-open-payment-per-booking index
+  // forever, and the client can never pay.
+  it("resolves the return url before writing a payment row", async () => {
+    stubBooking(confirmedBooking());
+    stubPayments();
+    okCheckout();
+    getBaseUrl.mockImplementation(() => {
+      throw new Error("NEXT_PUBLIC_APP_URL is not set");
+    });
+
+    const result = await initiateBookingPayment(BOOKING_ID);
+
+    expect(result).toHaveProperty("error");
+    expect(supabaseState.writes).toHaveLength(0);
+  });
+
+  it("marks the row FAILED when recording the open checkout fails", async () => {
+    stubBooking(confirmedBooking());
+    supabaseState.responders.payments = (state: QueryState) => {
+      if (state.op === "update" && state.payload?.status === "PENDING") {
+        return { data: null, error: { code: "08006", message: "connection failure" } };
+      }
+      return { data: null, error: null };
+    };
+    okCheckout();
+
+    const result = await initiateBookingPayment(BOOKING_ID);
+
+    expect(result).toHaveProperty("error");
+    const failed = supabaseState.writes.find(
+      (w) => w.table === "payments" && w.op === "update" && w.payload.status === "FAILED"
+    );
+    expect(failed).toBeDefined();
+  });
+
+  it("retires a CREATED row older than 10 minutes and opens a new checkout", async () => {
+    stubBooking(confirmedBooking());
+    stubPayments({
+      id: "p-dead",
+      status: "CREATED",
+      redirect_url: null,
+      created_at: new Date(Date.now() - 11 * 60_000).toISOString(),
+    });
+    okCheckout();
+
+    const result = await initiateBookingPayment(BOOKING_ID);
+
+    expect(result).toEqual({
+      data: { redirectUrl: "https://payments.yoco.com/checkout/ch_test_1" },
+    });
+    const retired = supabaseState.writes.find(
+      (w) => w.table === "payments" && w.op === "update" && w.filters.id === "p-dead"
+    );
+    expect(retired?.payload).toMatchObject({ status: "FAILED" });
+    // Conditional, so a row that moved on in the meantime is left alone.
+    expect(retired?.filters).toMatchObject({ status: "CREATED" });
+  });
+
+  it("asks the client to wait while a fresh CREATED row is still being set up", async () => {
+    stubBooking(confirmedBooking());
+    stubPayments({
+      id: "p-new",
+      status: "CREATED",
+      redirect_url: null,
+      created_at: new Date(Date.now() - 60_000).toISOString(),
+    });
+
+    const result = await initiateBookingPayment(BOOKING_ID);
+
+    expect(result).toHaveProperty("error");
+    expect(createCheckout).not.toHaveBeenCalled();
+    expect(supabaseState.writes).toHaveLength(0);
+  });
+});
+
+describe("saveSpeakerPayoutDetails", () => {
+  const valid = {
+    account_holder: "T Speaker",
+    bank_name: "FNB",
+    account_number: "62000000001",
+    branch_code: "250655",
+    account_type: "CHEQUE" as const,
+    tax_number: "",
+    is_vat_registered: false,
+  };
+
+  it("never returns a raw database error message", async () => {
+    supabaseState.responders.speaker_profiles = () => ({ data: { id: "sp-1" }, error: null });
+    supabaseState.responders.speaker_payout_details = () => ({
+      data: null,
+      error: { code: "XX000", message: 'violates constraint "speaker_payout_details_secret_ck"' },
+    });
+
+    const result = await saveSpeakerPayoutDetails(valid);
+
+    expect("error" in result && result.error).toBeTruthy();
+    expect("error" in result && result.error).not.toMatch(/constraint/);
+  });
+
+  it("reports a failed speaker lookup instead of 'only speakers'", async () => {
+    supabaseState.responders.speaker_profiles = () => ({
+      data: null,
+      error: { code: "57014", message: "timeout" },
+    });
+
+    const result = await saveSpeakerPayoutDetails(valid);
+
+    expect("error" in result && result.error).not.toMatch(/only speakers/i);
+    expect(supabaseState.writes).toHaveLength(0);
   });
 });
 
