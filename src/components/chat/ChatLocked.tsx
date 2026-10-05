@@ -7,7 +7,7 @@ interface ChatLockedProps {
 export function ChatLocked({ reason }: ChatLockedProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[300px] py-12 text-center px-8">
-      <div className="w-14 h-14 rounded-[12px] bg-soft flex items-center justify-center mb-4">
+      <div className="w-14 h-14 rounded-[8px] bg-soft flex items-center justify-center mb-4">
         <Lock size={24} className="text-secondary" />
       </div>
       <h3 className="font-archivo font-bold text-primary mb-2">
