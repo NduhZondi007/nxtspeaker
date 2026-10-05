@@ -1,12 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Message } from "@/lib/types/database";
+import type { Message, Profile } from "@/lib/types/database";
 
-export function useRealtimeMessages(bookingId: string, initialMessages: Message[] = []) {
+/** Adds a message unless one with the same id is already in the thread. */
+function withMessage(prev: Message[], message: Message): Message[] {
+  if (prev.some((m) => m.id === message.id)) return prev;
+  return [...prev, message];
+}
+
+export function useRealtimeMessages(
+  bookingId: string,
+  initialMessages: Message[] = [],
+  currentUser?: Profile
+) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const profileCache = useRef<Map<string, Message["profiles"]>>(new Map());
+  // Seeded with the viewer's own profile so their messages never wait on a
+  // `profiles` round trip before rendering.
+  const profileCache = useRef<Map<string, Message["profiles"]>>(
+    new Map(currentUser ? [[currentUser.id, currentUser]] : [])
+  );
 
   // `initialMessages` seeds state only on first render, so navigating from
   // one booking's thread to another (or a router.refresh() that returns new
@@ -16,6 +30,7 @@ export function useRealtimeMessages(bookingId: string, initialMessages: Message[
   useEffect(() => {
     setMessages(initialMessages);
     profileCache.current.clear();
+    if (currentUser) profileCache.current.set(currentUser.id, currentUser);
     // `initialIds` is a stable digest of the prop; depending on the array
     // itself would re-run on every render because the parent rebuilds it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,10 +69,7 @@ export function useRealtimeMessages(bookingId: string, initialMessages: Message[
             profiles: senderProfile,
           };
 
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === newMessage.id)) return prev;
-            return [...prev, newMessage];
-          });
+          setMessages((prev) => withMessage(prev, newMessage));
         }
       )
       .subscribe();
@@ -68,5 +80,11 @@ export function useRealtimeMessages(bookingId: string, initialMessages: Message[
     };
   }, [bookingId]);
 
-  return { messages, setMessages };
+  // The sender's copy arrives from the server action, usually before the
+  // realtime INSERT; whichever lands second is dropped by id.
+  const appendMessage = useCallback((message: Message) => {
+    setMessages((prev) => withMessage(prev, message));
+  }, []);
+
+  return { messages, setMessages, appendMessage };
 }

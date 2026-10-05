@@ -16,12 +16,22 @@ interface ChatPanelProps {
 
 export function ChatPanel({ booking, initialMessages, currentUser, onSend }: ChatPanelProps) {
   const chatEnabled = canChat(booking.status);
-  const { messages } = useRealtimeMessages(booking.id, initialMessages);
+  const { messages, appendMessage } = useRealtimeMessages(booking.id, initialMessages, currentUser);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const hasScrolledRef = useRef(false);
 
+  // Jump to the bottom on first load — smooth-scrolling a long history made
+  // opening a thread feel slow. Only new messages glide in.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: hasScrolledRef.current ? "smooth" : "auto" });
+    hasScrolledRef.current = true;
   }, [messages]);
+
+  async function handleSend(content: string): Promise<SendResult | void> {
+    const result = await onSend(booking.id, content);
+    if (result?.data) appendMessage({ ...result.data, profiles: currentUser });
+    return result;
+  }
 
   if (!chatEnabled) {
     return <ChatLocked />;
@@ -71,7 +81,7 @@ export function ChatPanel({ booking, initialMessages, currentUser, onSend }: Cha
         <div ref={bottomRef} />
       </div>
 
-      <ChatInput onSend={(content) => onSend(booking.id, content)} />
+      <ChatInput onSend={handleSend} />
     </div>
   );
 }

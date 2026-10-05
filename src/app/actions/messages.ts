@@ -44,7 +44,9 @@ export async function sendMessage(bookingId: string, content: string) {
       sender_id: user.id,
       content: trimmed,
     })
-    .select("*, profiles(*)")
+    // No profiles join: the sender's client attaches its own profile, and the
+    // full row (email, phone) has no business crossing the wire here.
+    .select()
     .single();
 
   if (error) return { error: error.message };
