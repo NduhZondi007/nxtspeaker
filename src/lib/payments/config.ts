@@ -55,3 +55,19 @@ export function getWebhookToleranceSeconds(): number {
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 180;
 }
+
+/**
+ * Whether the configured secret key is a live or a test key, read from its
+ * prefix — or null when no key is configured.
+ *
+ * Deliberately non-throwing: the webhook uses it only to refuse a test-mode
+ * event on a live deployment, and an unset key must not turn every webhook
+ * delivery into a 500.
+ */
+export function getYocoKeyMode(): "live" | "test" | null {
+  assertServer();
+  const key = process.env.YOCO_SECRET_KEY ?? "";
+  if (key.startsWith("sk_live_")) return "live";
+  if (key.startsWith("sk_test_")) return "test";
+  return null;
+}

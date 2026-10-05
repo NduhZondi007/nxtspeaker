@@ -1,7 +1,11 @@
 import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/server";
 import { getPaymentProvider } from "@/lib/payments";
-import { getYocoWebhookSecret, getWebhookToleranceSeconds } from "@/lib/payments/config";
+import {
+  getYocoKeyMode,
+  getYocoWebhookSecret,
+  getWebhookToleranceSeconds,
+} from "@/lib/payments/config";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("yoco-webhook");
@@ -29,12 +33,32 @@ const log = createLogger("yoco-webhook");
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Event types that mean "the client's money has arrived". */
-const SUCCESS_EVENT_TYPES = new Set([
-  "payment.succeeded",
-  "payment.created",
-  "checkout.completed",
-]);
+/**
+ * Event types that mean "the client's money has arrived".
+ *
+ * Only `payment.succeeded`. `payment.created` and `checkout.completed` can
+ * fire before a capture (or without one), and recording either as money
+ * received would mark a booking paid that may never be.
+ */
+const SUCCESS_EVENT_TYPES = new Set(["payment.succeeded"]);
+
+/**
+ * supabase-js reports a failure by RETURNING `{ error }`, not by throwing.
+ * Every database step below goes through this so a returned error lands in
+ * the catch block (500, event left unprocessed, Yoco retries) instead of being
+ * read as "no row" and acknowledged.
+ */
+class TransientDbError extends Error {
+  constructor(step: string, cause: unknown) {
+    super(`webhook step failed: ${step}`, { cause });
+    this.name = "TransientDbError";
+  }
+}
+
+function check<T extends { error: unknown }>(result: T, step: string): T {
+  if (result.error) throw new TransientDbError(step, result.error);
+  return result;
+}
 
 interface ResolvedEvent {
   type: string;
@@ -42,6 +66,8 @@ interface ResolvedEvent {
   checkoutId: string | null;
   providerPaymentId: string | null;
   amountCents: number | null;
+  /** `live` / `test` as the provider reported it, or null if absent. */
+  mode: "live" | "test" | null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -81,7 +107,12 @@ function resolveEvent(body: unknown): ResolvedEvent {
     providerPaymentId:
       asString(payload.id) ?? asString(event.payment_id) ?? asString(payload.paymentId),
     amountCents,
+    mode: asMode(payload.mode) ?? asMode(payload.processingMode) ?? asMode(event.mode),
   };
+}
+
+function asMode(value: unknown): "live" | "test" | null {
+  return value === "live" || value === "test" ? value : null;
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -141,12 +172,21 @@ export async function POST(request: Request): Promise<Response> {
     let eventRowId = inserted?.id as string | undefined;
 
     if (insertError) {
-      const { data: existing } = await service
-        .from("webhook_events")
-        .select("id, processed_at")
-        .eq("provider", "yoco")
-        .eq("provider_event_id", webhookId)
-        .maybeSingle();
+      // Only a unique violation means "seen before". Anything else is the
+      // database failing, and the event has not been stored at all.
+      if ((insertError as { code?: string }).code !== "23505") {
+        throw new TransientDbError("dedupe insert", insertError);
+      }
+
+      const { data: existing } = check(
+        await service
+          .from("webhook_events")
+          .select("id, processed_at")
+          .eq("provider", "yoco")
+          .eq("provider_event_id", webhookId)
+          .maybeSingle(),
+        "dedupe read"
+      );
 
       // Already applied — acknowledge and stop. This is the path most
       // redeliveries take.
@@ -166,11 +206,23 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ status: "ignored" }, { status: 200 });
     }
 
+    // A test-mode payment is not money. On a deployment holding a live key it
+    // can only be a misconfigured or replayed sandbox event, so it is stored,
+    // acknowledged and never recorded.
+    if (event.mode === "test" && getYocoKeyMode() === "live") {
+      log.warn("test-mode event received on a live key — not recorded", { webhookId });
+      await markProcessed(service, eventRowId, "test_mode_on_live_key");
+      return Response.json({ status: "ignored_test_mode" }, { status: 200 });
+    }
+
     // Resolve our payment row: metadata first, then the checkout id.
     const lookup = service.from("payments").select("id, booking_id, status");
-    const { data: payment } = event.paymentId
-      ? await lookup.eq("id", event.paymentId).maybeSingle()
-      : await lookup.eq("provider_checkout_id", event.checkoutId ?? "").maybeSingle();
+    const { data: payment } = check(
+      event.paymentId
+        ? await lookup.eq("id", event.paymentId).maybeSingle()
+        : await lookup.eq("provider_checkout_id", event.checkoutId ?? "").maybeSingle(),
+      "payment lookup"
+    );
 
     if (!payment) {
       log.error("could not resolve a payment for event", { webhookId });
@@ -180,12 +232,15 @@ export async function POST(request: Request): Promise<Response> {
 
     // The amount is re-verified inside the RPC, against the figure we priced
     // from the booking, in the same locked transaction that would advance it.
-    const { data: outcome } = await service.rpc("record_successful_payment", {
-      p_payment_id: payment.id,
-      p_provider_payment_id: event.providerPaymentId,
-      p_event_id: eventRowId ?? null,
-      p_amount_cents: event.amountCents,
-    });
+    const { data: outcome } = check(
+      await service.rpc("record_successful_payment", {
+        p_payment_id: payment.id,
+        p_provider_payment_id: event.providerPaymentId,
+        p_event_id: eventRowId ?? null,
+        p_amount_cents: event.amountCents,
+      }),
+      "record_successful_payment"
+    );
 
     const reason = asString(asRecord(outcome).reason);
     await markProcessed(service, eventRowId, reason);
@@ -215,13 +270,19 @@ async function markProcessed(
 ): Promise<void> {
   if (!eventRowId) return;
 
-  await service
-    .from("webhook_events")
-    .update({
-      processed_at: new Date().toISOString(),
-      processing_error: processingError,
-    })
-    .eq("id", eventRowId);
+  // If this write fails the event must stay unprocessed, so the throw is
+  // deliberate: it reaches the route's catch and Yoco redelivers. The ledger
+  // RPC is idempotent, so the retry is safe.
+  check(
+    await service
+      .from("webhook_events")
+      .update({
+        processed_at: new Date().toISOString(),
+        processing_error: processingError,
+      })
+      .eq("id", eventRowId),
+    "mark processed"
+  );
 }
 
 export async function GET(): Promise<Response> {
