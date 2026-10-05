@@ -5,22 +5,25 @@ import { AuthProvider } from "@/components/layout/AuthProvider";
 import { ToastProvider } from "@/components/ui/Toast";
 import { getBaseUrl } from "@/lib/env";
 
+// next/font exposes each face under a private --nf-* name; globals.css maps
+// them onto Tailwind's --font-* theme keys. Sharing one name made the theme
+// variable reference itself, which is why font-archivo etc. never worked.
 const archivo = Archivo({
-  variable: "--font-archivo",
+  variable: "--nf-archivo",
   subsets: ["latin"],
   weight: ["500", "600", "700", "800", "900"],
   display: "swap",
 });
 
 const hanken = Hanken_Grotesk({
-  variable: "--font-hanken",
+  variable: "--nf-hanken",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
 const spaceMono = Space_Mono({
-  variable: "--font-space-mono",
+  variable: "--nf-space-mono",
   subsets: ["latin"],
   weight: ["400", "700"],
   display: "swap",

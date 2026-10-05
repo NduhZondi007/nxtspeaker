@@ -23,9 +23,9 @@
   --color-danger:  #C47A6A;
 
   /* Typography */
-  --font-family-archivo:    var(--font-archivo), system-ui, sans-serif;
-  --font-family-hanken:     var(--font-hanken), system-ui, sans-serif;
-  --font-family-space-mono: var(--font-space-mono), monospace;
+  --font-archivo:    var(--nf-archivo), system-ui, sans-serif;
+  --font-hanken:     var(--nf-hanken), system-ui, sans-serif;
+  --font-space-mono: var(--nf-space-mono), monospace;
 
   /* Animations */
   --animate-pulse-dot:    pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -76,13 +76,13 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-hanken, system-ui, sans-serif);
+  font-family: var(--font-hanken);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-archivo, system-ui, sans-serif);
+  font-family: var(--font-archivo);
 }
 
 /* Scrollbar styling */
