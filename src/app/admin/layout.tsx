@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/session";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SidebarProvider } from "@/components/layout/SidebarContext";
 
@@ -10,31 +9,15 @@ export const metadata: Metadata = {
 };
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, avatar_url, role")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile) redirect("/login");
-
-  if (profile.role !== "ADMIN") {
-    redirect(profile.role === "SPEAKER" ? "/speaker/dashboard" : "/client/dashboard");
-  }
+  // requireRole redirects signed-out users and non-admins, and throws on a
+  // failed profile read so it reaches admin/error.tsx instead of looping.
+  const profile = await requireRole("ADMIN");
 
   return (
     <SidebarProvider>
       <div className="flex min-h-screen bg-white">
         <Sidebar role="ADMIN" userName={profile.full_name} avatarUrl={profile.avatar_url} />
-        <main className="flex-1 min-w-0 overflow-auto">{children}</main>
+        <main id="main-content" className="flex-1 min-w-0 overflow-auto">{children}</main>
       </div>
     </SidebarProvider>
   );

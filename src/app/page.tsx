@@ -1,28 +1,16 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getMyProfile } from "@/lib/auth/session";
+
+const HOME = {
+  SPEAKER: "/speaker/dashboard",
+  ADMIN: "/admin/dashboard",
+  CLIENT: "/client/dashboard",
+} as const;
 
 export default async function HomePage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role === "SPEAKER") {
-    redirect("/speaker/dashboard");
-  } else if (profile?.role === "ADMIN") {
-    redirect("/admin/dashboard");
-  }
-
-  redirect("/client/dashboard");
+  // A failed profile read throws to the root error boundary; it used to fall
+  // through to /client/dashboard, whose layout then disagreed about the role.
+  const profile = await getMyProfile();
+  if (!profile) redirect("/login");
+  redirect(HOME[profile.role] ?? "/client/dashboard");
 }
