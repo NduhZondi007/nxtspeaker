@@ -33,7 +33,7 @@ export function LoginForm() {
             src="/logoStack_navy.png"
             alt="NXTSpeaker"
             width={120}
-            height={120}
+            height={113}
             className="object-contain"
             priority
           />

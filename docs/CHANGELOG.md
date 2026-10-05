@@ -63,6 +63,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the row-list pattern for queues, and account-number masking.
 
 ### Changed
+- **Brand mark replaced with the 2026 NXT SPEAKER badge.** All lockups (horizontal,
+  stacked, badge-only), `icon.png`, the Apple touch icon, the PWA manifest icon and the
+  OG-image watermark now use the circular navy + orange badge. The teal and lavender
+  logo colourways are retired — the badge is a fixed two-colour mark. `icon.svg` and
+  `icon-mark.svg` (old mark) are removed until a vector of the badge exists.
+  Sidebar, login and register logo sizes follow the new aspect ratios.
+- **Client dashboard stat cards redesigned** (`StatCard`): teal Space Mono label on
+  top, icon in a soft-grey tile, large Archivo 900 navy value, solid 2px top rule in
+  the stat colour, 8px radius. "Total Spent" keeps Space Mono (Financial surfaces).
+- **Design system shipped as a Claude Code skill** at
+  `.claude/skills/nxt-speaker-design/` (`/nxt-speaker-design`).
 - **New booking status `PAID`**, and completion is now gated on payment. `CONFIRMED`
   means "accepted, awaiting payment"; only the verified webhook (service role) can
   move a booking to `PAID`.
@@ -87,6 +98,10 @@ Versions follow [Semantic Versioning](https://semver.org/).
   webhook carries no cookies, so the refresh could never do anything for it.
 
 ### Fixed
+- **Apple touch icon 404'd.** Metadata pointed at `/apple-icon.png`, but the file was
+  `src/app/apple-touch-icon.png`, which is not a Next.js metadata convention and was
+  never served. Renamed to `src/app/apple-icon.png`; the explicit `icons` metadata is
+  dropped in favour of the file conventions.
 - **Admin "Platform Revenue" was wrong twice over.** It summed `quoted_fee_zar` — the
   speakers' money passing through, not revenue — and computed it from the `.limit(8)`
   recent-bookings list, so it only ever counted the eight most recent bookings. It now

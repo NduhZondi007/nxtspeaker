@@ -10,7 +10,7 @@ Disruptive speakers platform where audiences meet and book speakers directly —
 
 **Design direction: Momentum** (chosen direction)
 - Navy hero band, oversized uppercase Archivo headings
-- Logo mark used as oversized rotated watermark (~15% opacity)
+- Badge used as oversized rotated watermark (~15% opacity)
 - Teal feature band for structural separation
 - Angular, high-contrast feature cards
 - Light-led overall: white/near-white canvas, colour used surgically
@@ -202,39 +202,45 @@ number in an admin list or an export preview.
 
 All assets live in `styling_assets/assets/`. Copy required variants into `public/` before use.
 
-### Horizontal lockup (mark + "NXT SPEAKER")
+The brand mark is the **2026 circular NXT SPEAKER badge**: navy `#031E57` "N" and "T", an orange
+`#FF5700` "X" topped by a megaphone, and a "— SPEAKER —" sub-line inside a thin navy ring. It is a
+fixed two-colour mark. The earlier angular mark and its teal / lavender colourways are retired.
+There is no vector master yet, so every asset is a transparent PNG.
+
+### Horizontal lockup (badge + "NXT SPEAKER") — 1472×432, ≈3.4:1
 
 | File | Colour | Use on |
 |------|--------|--------|
 | `logoHoriz_navy.png` | Navy | Light/white backgrounds — default nav, footers |
-| `logoHoriz_white.png` | White | Dark/navy backgrounds |
-| `logoHoriz_teal.png` | Teal | Teal-band contexts only |
+| `logoHoriz_white.png` | White | Dark/navy backgrounds (sidebar: `width={140} height={41}`) |
 | `logoHoriz_orange.png` | Orange | Avoid — provided for completeness only |
 
-### Stacked lockup (mark above wordmark)
+### Stacked lockup (badge above wordmark) — 848×800
 
 | File | Use on |
 |------|--------|
-| `logoStack_navy.png` | Light backgrounds, print, square format contexts |
-| `logoStack_teal.png` | Teal-band contexts |
+| `logoStack_navy.png` | Light backgrounds, print, square format contexts (login / register) |
 | `logoStack_white.png` | Dark/navy backgrounds |
 
-### Mark only (graphic device / favicon)
+### Badge only (graphic device / favicon) — 512×512
 
 | File | Use case |
 |------|---------|
-| `logoMark_navy.png` | Favicon, small icon on light bg |
-| `logoMark_teal.png` | Decorative, teal-surface contexts |
-| `logoMark_white.png` | Small icon on dark bg |
+| `logoMark_navy.png` | Small icon on light bg; also `src/app/icon.png` (favicon) and the PWA manifest icon |
+| `logoMark_white.png` | Small icon on dark bg; oversized watermark at 15% opacity on dark bands |
 | `logoMark_orange.png` | Avoid for decoration — orange is actions-only |
-| `logoMark_lavender.png` | Oversized watermark at 15% opacity on dark bands |
+| `apple-touch-icon.png` | 180×180, navy ground baked in (iOS ignores alpha) — served as `src/app/apple-icon.png` |
+
+Favicons use Next.js file conventions (`src/app/icon.png`, `src/app/apple-icon.png`); do not
+reintroduce `icon.svg` until a vector of the badge exists, or browsers will prefer the stale SVG.
 
 ### Logo usage rules
 
 - **Light background → navy logo** (`logoHoriz_navy.png`)
 - **Dark/navy background → white logo** (`logoHoriz_white.png`)
-- The angular mark may be used oversized and rotated at **≤15% opacity** as a background graphic on dark hero sections
-- Never stretch, recolour, or apply effects to logo files
+- The badge may be used oversized and rotated at **≤15% opacity** as a background graphic on dark hero sections (`logoMark_white.png`)
+- Never stretch, recolour, or apply effects to logo files — size by the file's own aspect ratio
+- Never recreate teal or lavender versions of the badge
 - Never use the orange logo as a decorative element
 
 ---
@@ -276,4 +282,4 @@ Before writing any UI code for a new component or page:
 
 ---
 
-*Source: `styling_assets/HANDOFF.md` and `styling_assets/assets/`. Last reviewed: 2026-09-18.*
+*Source: `styling_assets/HANDOFF.md` and `styling_assets/assets/`. Last reviewed: 2026-10-05.*

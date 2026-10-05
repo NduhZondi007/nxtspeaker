@@ -109,7 +109,7 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
             src="/logoHoriz_white.png"
             alt="NXT Speaker"
             width={140}
-            height={32}
+            height={41}
             className="object-contain"
             priority
           />

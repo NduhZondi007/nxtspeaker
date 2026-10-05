@@ -1,0 +1,4 @@
+/* NXT Speaker typefaces — exactly the three families the codebase loads via next/font/google
+   (src/app/layout.tsx): Archivo (display), Hanken Grotesk (body/UI), Space Mono (labels).
+   No font binaries ship with the brand pack; these are the real Google Fonts, not substitutes. */
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap");

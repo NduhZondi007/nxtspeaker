@@ -84,13 +84,15 @@ Google Fonts import:
 Transparent PNGs in `assets/`:
 
 ```
-assets/logoHoriz_{navy,white,teal,orange}.png   horizontal lockup (mark + "NXT SPEAKER")
-assets/logoStack_{navy,white,teal}.png          stacked lockup (mark over wordmark)
-assets/logoMark_{navy,teal,white,orange,lavender}.png   mark only (graphic device / favicon)
+assets/logoHoriz_{navy,white,orange}.png   horizontal lockup (badge + "NXT SPEAKER"), 1472×432
+assets/logoStack_{navy,white}.png          stacked lockup (badge over wordmark), 848×800
+assets/logoMark_{navy,white,orange}.png    badge only (graphic device / favicon), 512×512
+assets/apple-touch-icon.png                180×180, navy ground baked in
 ```
 
 - On light backgrounds → **navy** logo. On navy backgrounds → **white** logo.
-- The angular mark can be used oversized / rotated at low opacity (~15%) as a background graphic.
+- The 2026 circular badge is a fixed navy + orange mark — never recolour it (the old teal / lavender variants are retired).
+- The badge can be used oversized / rotated at low opacity (~15%) as a background graphic (`logoMark_white.png` on navy).
 
 ---
 

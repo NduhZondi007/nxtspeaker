@@ -1,0 +1,25 @@
+/* 4px base grid — the only step values used in the app */
+:root{
+  --space-1:4px;
+  --space-2:8px;
+  --space-3:12px;
+  --space-4:16px;
+  --space-6:24px;
+  --space-8:32px;
+  --space-12:48px;
+  --space-16:64px;
+  --space-20:80px;
+  --space-24:96px;
+
+  --gutter:24px;
+  --container-max:1200px;
+  --container-narrow:720px;
+  --sidebar-w:248px;
+  --topbar-h:64px;
+
+  /* Control padding, verbatim from Button.tsx / Input.tsx */
+  --btn-pad-sm:6px 12px;
+  --btn-pad-md:12px 22px;
+  --btn-pad-lg:14px 32px;
+  --input-pad:10px 12px;
+}
