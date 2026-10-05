@@ -98,6 +98,13 @@ Versions follow [Semantic Versioning](https://semver.org/).
   webhook carries no cookies, so the refresh could never do anything for it.
 
 ### Fixed
+- **Booking chat felt slow and laggy.** A sent message waited on the server action
+  *and* the Supabase Realtime round trip before appearing, and the text box was
+  disabled (losing focus) the whole time. The inserted message is now shown as soon as
+  the server confirms it, the box clears on send and stays usable, failed sends put the
+  text back, the viewer's own profile no longer triggers a lookup, and the textarea
+  resize / first-load scroll are no longer animated. `sendMessage` also stops returning
+  the sender's full profile row.
 - **Apple touch icon 404'd.** Metadata pointed at `/apple-icon.png`, but the file was
   `src/app/apple-touch-icon.png`, which is not a Next.js metadata convention and was
   never served. Renamed to `src/app/apple-icon.png`; the explicit `icons` metadata is
