@@ -111,7 +111,7 @@ export function HospitalityRiderView({
               type="checkbox"
               checked={agreed}
               onChange={(e) => onAgree(e.target.checked)}
-              className="mt-0.5 w-4 h-4 accent-[#FF5700] cursor-pointer"
+              className="mt-0.5 w-4 h-4 accent-accent cursor-pointer"
             />
             <span className="text-sm text-ink leading-relaxed">
               I, <strong>{clientName ?? "the client"}</strong> representing{" "}

@@ -1,48 +1,60 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Users2, ShieldCheck, ChevronRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/session";
 import { TopBar } from "@/components/layout/TopBar";
+import { buttonClasses } from "@/components/ui/Button";
+import { ActionButton } from "@/components/ui/ActionButton";
+import { Pagination, PAGE_SIZE, pageRange, parsePage } from "@/components/bookings/Pagination";
 import { promoteToAdmin, revokeAdmin } from "@/app/actions/admin";
+import { formatDateSAST } from "@/lib/utils/booking";
 import type { Profile } from "@/lib/types/database";
+
+interface Props {
+  searchParams: Promise<{ page?: string }>;
+}
 
 const roleBadge: Record<string, string> = {
   CLIENT: "bg-secondary/10 text-secondary border border-secondary/30",
-  SPEAKER: "bg-accent/10 text-accent border border-accent/30",
-  ADMIN: "bg-danger/15 text-danger border border-danger/30",
+  // Not orange: a role label is not an action. See docs/DESIGN.md.
+  SPEAKER: "bg-support text-primary border border-support",
+  ADMIN: "bg-primary/10 text-primary border border-primary/30",
 };
 
-export default async function AdminUsersPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+export default async function AdminUsersPage({ searchParams }: Props) {
+  const admin = await requireRole("ADMIN");
 
-  const { data: rawUsers } = await supabase
+  const page = parsePage((await searchParams).page);
+  const [from, to] = pageRange(page);
+
+  const supabase = await createClient();
+  const { data: rawUsers, count, error } = await supabase
     .from("profiles")
-    .select("*")
-    .order("created_at", { ascending: false });
+    .select("id, full_name, email, role, base_role, created_at", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (error) throw new Error("Could not load users. Please try again.");
 
   const users = (rawUsers ?? []) as Profile[];
+  const total = count ?? users.length;
 
   return (
     <div>
-      <TopBar
-        title="Users"
-        subtitle={`${users.length} total user${users.length !== 1 ? "s" : ""}`}
-      />
+      <TopBar title="Users" subtitle={`${total} total user${total !== 1 ? "s" : ""}`} />
 
-      <div className="p-4 sm:p-6">
-        <div className="bg-white border border-line rounded-[12px] overflow-hidden">
+      <div className="p-4 sm:p-6 space-y-4">
+        <div className="bg-white border border-line rounded-[8px] overflow-hidden">
           {users.length === 0 ? (
             <div className="text-center py-16">
-              <Users2 size={32} className="text-line mx-auto mb-3" />
+              <Users2 size={32} className="text-line mx-auto mb-3" aria-hidden="true" />
               <p className="font-archivo text-muted">No users yet</p>
             </div>
           ) : (
             <div className="divide-y divide-line">
-              {users.map((u: Profile) => (
-                <div key={u.id} className="flex items-center gap-3 px-5 py-4">
-                  <div className="w-9 h-9 rounded-full bg-secondary/20 flex items-center justify-center shrink-0">
+              {users.map((u) => (
+                <div key={u.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
+                  <div className="w-9 h-9 rounded-full bg-secondary/20 flex items-center justify-center shrink-0" aria-hidden="true">
                     <span className="text-sm font-bold text-secondary">
                       {u.full_name.charAt(0).toUpperCase()}
                     </span>
@@ -51,8 +63,8 @@ export default async function AdminUsersPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold text-ink">{u.full_name}</p>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${roleBadge[u.role] ?? ""}`}>
-                        {u.role === "ADMIN" && <ShieldCheck size={9} className="mr-1" />}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold font-space-mono uppercase ${roleBadge[u.role] ?? ""}`}>
+                        {u.role === "ADMIN" && <ShieldCheck size={9} className="mr-1" aria-hidden="true" />}
                         {u.role}
                       </span>
                       {u.base_role && (
@@ -60,39 +72,35 @@ export default async function AdminUsersPage() {
                       )}
                     </div>
                     <p className="text-xs text-muted truncate">{u.email}</p>
-                    <p className="text-[10px] text-muted mt-0.5">
-                      Joined {new Date(u.created_at).toLocaleDateString("en-ZA")}
-                    </p>
+                    <p className="text-[10px] text-muted mt-0.5">Joined {formatDateSAST(u.created_at)}</p>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-                    {u.id !== user.id && (
-                      <>
-                        {u.role !== "ADMIN" ? (
-                          <form action={async () => { "use server"; await promoteToAdmin(u.id); }}>
-                            <button
-                              type="submit"
-                              className="text-xs px-3 py-1.5 border border-secondary/40 text-secondary rounded-[6px] hover:bg-secondary/10 transition-colors"
-                            >
-                              Make Admin
-                            </button>
-                          </form>
-                        ) : (
-                          <form action={async () => { "use server"; await revokeAdmin(u.id); }}>
-                            <button
-                              type="submit"
-                              className="text-xs px-3 py-1.5 border border-danger/30 text-danger rounded-[6px] hover:bg-danger/10 transition-colors"
-                            >
-                              Revoke Admin
-                            </button>
-                          </form>
-                        )}
-                      </>
-                    )}
-                    <Link href={`/admin/users/${u.id}`}>
-                      <button className="text-xs px-3 py-1.5 border border-line text-ink rounded-[6px] hover:border-secondary transition-colors flex items-center gap-1">
-                        View <ChevronRight size={12} />
-                      </button>
+                  <div className="flex items-start gap-2 shrink-0 flex-wrap justify-end">
+                    {u.id !== admin.id &&
+                      (u.role !== "ADMIN" ? (
+                        <ActionButton
+                          action={promoteToAdmin.bind(null, u.id)}
+                          variant="outline"
+                          confirm={{ message: `Make ${u.full_name} an admin?`, confirmLabel: "Yes, make admin" }}
+                        >
+                          Make Admin
+                        </ActionButton>
+                      ) : (
+                        <ActionButton
+                          action={revokeAdmin.bind(null, u.id)}
+                          variant="outline"
+                          className="text-danger border-danger/40"
+                          confirm={{ message: `Revoke ${u.full_name}'s admin access?`, confirmLabel: "Yes, revoke" }}
+                        >
+                          Revoke Admin
+                        </ActionButton>
+                      ))}
+                    <Link
+                      href={`/admin/users/${u.id}`}
+                      className={buttonClasses({ variant: "ghost", size: "sm" })}
+                      aria-label={`View ${u.full_name}`}
+                    >
+                      View <ChevronRight size={12} aria-hidden="true" />
                     </Link>
                   </div>
                 </div>
@@ -100,6 +108,8 @@ export default async function AdminUsersPage() {
             </div>
           )}
         </div>
+
+        <Pagination page={page} pageSize={PAGE_SIZE} total={total} hrefFor={(p) => `/admin/users?page=${p}`} />
       </div>
     </div>
   );

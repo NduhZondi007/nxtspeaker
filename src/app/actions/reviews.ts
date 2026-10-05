@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { toUserError } from "@/lib/errors";
 
 interface SubmitReviewInput {
   bookingId: string;
@@ -53,12 +54,13 @@ export async function submitReview(input: SubmitReviewInput) {
 
   // Verify booking is completed and belongs to this client, and read the
   // speaker straight off it
-  const { data: booking } = await supabase
+  const { data: booking, error: readError } = await supabase
     .from("bookings")
     .select("status, client_id, speaker_id")
     .eq("id", review.bookingId)
-    .single();
+    .maybeSingle();
 
+  if (readError) return { error: toUserError(readError, "Could not load the booking") };
   if (!booking) return { error: "Booking not found" };
   if (booking.status !== "COMPLETED") return { error: "Reviews can only be submitted for completed bookings" };
   if (booking.client_id !== user.id) return { error: "Unauthorized" };
@@ -77,9 +79,9 @@ export async function submitReview(input: SubmitReviewInput) {
     .select()
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: toUserError(error, "Could not submit your review") };
 
-  revalidatePath(`/client/bookings/${input.bookingId}`);
+  revalidatePath(`/client/bookings/${review.bookingId}`);
   revalidatePath("/client/bookings");
 
   return { data };

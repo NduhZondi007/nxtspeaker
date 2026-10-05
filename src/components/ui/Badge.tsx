@@ -10,7 +10,7 @@ const statusStyles: Record<BookingStatus, string> = {
   DECLINED: "bg-muted/15 text-muted border border-muted/30",
 };
 
-const statusLabels: Record<BookingStatus, string> = {
+export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
   PENDING: "Pending",
   // Under escrow, CONFIRMED means "accepted, awaiting payment" — the label
   // says so rather than implying the booking is settled.
@@ -36,7 +36,7 @@ export function BookingStatusBadge({ status, className = "" }: BookingStatusBadg
         className,
       ].join(" ")}
     >
-      {statusLabels[status]}
+      {BOOKING_STATUS_LABELS[status]}
     </span>
   );
 }

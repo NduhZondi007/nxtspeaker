@@ -2,11 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
+import { createLogger } from "@/lib/logger";
+import { toUserError } from "@/lib/errors";
 import {
   canClientCancel,
   canSpeakerTransition,
   isBookingStatus,
+  todayInSAST,
   validateBookingDates,
 } from "@/lib/utils/booking";
 import { isSpeakerListable } from "@/lib/utils/profile-completeness";
@@ -29,10 +32,15 @@ interface CreateBookingInput {
   // quoted_fee_zar is intentionally omitted — always fetched server-side
 }
 
+const log = createLogger("bookings");
+
+/** Returned when a conditional update matched no row: someone else moved it. */
+const CONFLICT_ERROR = "This booking was changed by someone else. Refresh the page and try again.";
+
 // Server Action arguments are deserialised JSON: the `CreateBookingInput`
 // annotation is erased at build time, so everything below is validated at
-// runtime. Mirrors the schema used by the equivalent REST route
-// (src/app/api/bookings/route.ts) so the two entry points cannot drift.
+// runtime. This is the only booking-creation entry point — the duplicate
+// REST route (src/app/api/bookings) had no caller and was removed.
 const CreateBookingSchema = z.object({
   speaker_id: z.string().uuid("Invalid speaker"),
   event_name: z.string().trim().min(1, "Event name is required").max(200),
@@ -65,15 +73,6 @@ export async function createBooking(input: CreateBookingInput) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  // Verify caller is a CLIENT — speakers must not create bookings
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "CLIENT") return { error: "Only clients can create bookings" };
-
   const parsed = CreateBookingSchema.safeParse(input);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid booking details" };
@@ -83,16 +82,26 @@ export async function createBooking(input: CreateBookingInput) {
   const dateError = validateBookingDates(booking.event_date, booking.event_end_date);
   if (dateError) return { error: dateError };
 
-  // Always look up the speaker's listed fee — never trust the client-supplied value
-  const { data: speaker } = await supabase
-    .from("speaker_profiles")
-    .select(
-      "speaking_fee_zar, status, bio, expertise, languages, location, photo_urls, profiles(avatar_url)"
-    )
-    .eq("id", booking.speaker_id)
-    .eq("status", "ACTIVE")
-    .single();
+  // The role check and the fee lookup are independent — one round trip, not two.
+  const [profileRes, speakerRes] = await Promise.all([
+    supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
+    // Always look up the speaker's listed fee — never trust the client-supplied value
+    supabase
+      .from("speaker_profiles")
+      .select(
+        "speaking_fee_zar, status, bio, expertise, languages, location, photo_urls, profiles(avatar_url)"
+      )
+      .eq("id", booking.speaker_id)
+      .eq("status", "ACTIVE")
+      .maybeSingle(),
+  ]);
 
+  if (profileRes.error) return { error: toUserError(profileRes.error, "Could not verify your account") };
+  // Verify caller is a CLIENT — speakers must not create bookings
+  if (profileRes.data?.role !== "CLIENT") return { error: "Only clients can create bookings" };
+
+  if (speakerRes.error) return { error: toUserError(speakerRes.error, "Could not load this speaker") };
+  const speaker = speakerRes.data;
   if (!speaker) return { error: "Speaker not found or unavailable" };
 
   // A speaker hidden from discovery for an incomplete profile must not be
@@ -126,7 +135,7 @@ export async function createBooking(input: CreateBookingInput) {
     .select()
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: toUserError(error, "Could not create the booking") };
 
   revalidatePath("/client/bookings");
   revalidatePath("/client/dashboard");
@@ -148,24 +157,33 @@ export async function updateBookingStatus(bookingId: string, status: BookingStat
   if (!isBookingStatus(status)) return { error: "Invalid booking status" };
 
   // Only speakers may accept/decline/complete bookings — clients use cancelBooking
-  const { data: speakerProfile } = await supabase
+  const { data: speakerProfile, error: spError } = await supabase
     .from("speaker_profiles")
     .select("id")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
+  if (spError) return { error: toUserError(spError, "Could not verify your speaker profile") };
   if (!speakerProfile) return { error: "Only speakers can update booking status" };
 
-  const { data: current } = await supabase
+  const { data: current, error: readError } = await supabase
     .from("bookings")
-    .select("status")
+    .select("status, event_date")
     .eq("id", bookingId)
     .eq("speaker_id", speakerProfile.id)
-    .single();
+    .maybeSingle();
 
+  if (readError) return { error: toUserError(readError, "Could not load the booking") };
   if (!current) return { error: "Booking not found" };
-  if (!canSpeakerTransition(current.status as BookingStatus, status)) {
-    return { error: `Cannot change a ${current.status.toLowerCase()} booking to ${status.toLowerCase()}` };
+  const from = current.status as BookingStatus;
+  if (!canSpeakerTransition(from, status)) {
+    return { error: `Cannot change a ${from.toLowerCase()} booking to ${status.toLowerCase()}` };
+  }
+
+  // Completion starts the payout hold. Marking an event delivered before it
+  // happened would start the clock on money for work not yet done.
+  if (status === "COMPLETED" && String(current.event_date) > todayInSAST()) {
+    return { error: "You can't mark an event delivered before the event date" };
   }
 
   const { data, error } = await supabase
@@ -173,10 +191,12 @@ export async function updateBookingStatus(bookingId: string, status: BookingStat
     .update({ status })
     .eq("id", bookingId)
     .eq("speaker_id", speakerProfile.id) // enforce ownership at DB layer too
+    .eq("status", from) // and only from the state we validated against
     .select()
-    .single();
+    .maybeSingle();
 
-  if (error) return { error: error.message };
+  if (error) return { error: toUserError(error, "Could not update the booking") };
+  if (!data) return { error: CONFLICT_ERROR };
 
   revalidatePath(`/client/bookings/${bookingId}`);
   revalidatePath(`/speaker/bookings/${bookingId}`);
@@ -195,30 +215,53 @@ export async function cancelBooking(bookingId: string, reason?: string) {
 
   if (!z.string().uuid().safeParse(bookingId).success) return { error: "Invalid booking" };
 
-  const { data: current } = await supabase
+  const { data: current, error: readError } = await supabase
     .from("bookings")
     .select("status")
     .eq("id", bookingId)
     .eq("client_id", user.id)
-    .single();
+    .maybeSingle();
 
+  if (readError) return { error: toUserError(readError, "Could not load the booking") };
   if (!current) return { error: "Booking not found" };
-  if (!canClientCancel(current.status as BookingStatus)) {
-    return { error: `A ${current.status.toLowerCase()} booking cannot be cancelled` };
+  const from = current.status as BookingStatus;
+  if (!canClientCancel(from)) {
+    return { error: `A ${from.toLowerCase()} booking cannot be cancelled` };
   }
 
   const { data, error } = await supabase
     .from("bookings")
     .update({
       status: "CANCELLED",
-      cancelled_reason: reason?.trim().slice(0, 1000) || null,
+      cancelled_reason: typeof reason === "string" ? reason.trim().slice(0, 1000) || null : null,
     })
     .eq("id", bookingId)
     .eq("client_id", user.id) // clients can only cancel their own bookings
+    .eq("status", from) // a booking that became PAID meanwhile must go through refund
     .select()
-    .single();
+    .maybeSingle();
 
-  if (error) return { error: error.message };
+  if (error) return { error: toUserError(error, "Could not cancel the booking") };
+  if (!data) return { error: CONFLICT_ERROR };
+
+  // A checkout opened before the cancellation is still live at Yoco. Closing
+  // our payment rows means a late success lands on a CANCELLED payment for a
+  // CANCELLED booking — the "owes a refund" state the admin reconciliation
+  // view surfaces — and initiateBookingPayment cannot reuse the old row.
+  // Payments have no client write policy, hence the service client.
+  const { error: paymentError } = await createServiceClient()
+    .from("payments")
+    .update({ status: "CANCELLED" })
+    .eq("booking_id", bookingId)
+    .in("status", ["CREATED", "PENDING"]);
+
+  if (paymentError) {
+    // The booking is cancelled either way; the open payment needs a human.
+    log.error("Could not close open payments for a cancelled booking", {
+      bookingId,
+      cause: paymentError,
+    });
+  }
 
   revalidatePath(`/client/bookings/${bookingId}`);
   revalidatePath("/client/bookings");

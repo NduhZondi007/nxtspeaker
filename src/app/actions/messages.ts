@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { toUserError } from "@/lib/errors";
 import { canChat } from "@/lib/utils/booking";
 import type { BookingStatus } from "@/lib/types/database";
 
@@ -26,12 +27,13 @@ export async function sendMessage(bookingId: string, content: string) {
   // the booking first lets us say *why*, and applies the same `canChat` rule
   // the UI uses (RLS alone still permits messages on a CANCELLED booking,
   // whose thread the UI shows as locked).
-  const { data: booking } = await supabase
+  const { data: booking, error: readError } = await supabase
     .from("bookings")
     .select("status")
     .eq("id", bookingId)
-    .single();
+    .maybeSingle();
 
+  if (readError) return { error: toUserError(readError, "Could not send your message") };
   if (!booking) return { error: "Booking not found" };
   if (!canChat(booking.status as BookingStatus)) {
     return { error: "Chat is not available for this booking" };
@@ -49,7 +51,7 @@ export async function sendMessage(bookingId: string, content: string) {
     .select()
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: toUserError(error, "Could not send your message") };
 
   return { data };
 }
