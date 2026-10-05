@@ -1,97 +1,89 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Banknote, Clock, DollarSign, Wallet } from "lucide-react";
+import { Banknote, Clock, DollarSign, PauseCircle, Wallet } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getMySpeakerProfileId, getSessionUser } from "@/lib/auth/session";
 import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/Badge";
-import { formatZAR, formatZARCents } from "@/lib/utils/currency";
-import type { Payout, PayoutStatus } from "@/lib/types/database";
+import { LoadError } from "@/components/payments/LoadError";
+import { MoneyTile } from "@/components/payments/MoneyTile";
+import { speakerPayoutBadge } from "@/components/payments/status-styles";
+import { formatZARCents } from "@/lib/utils/currency";
+import { requestNowMs } from "@/lib/utils/time";
+import { summariseSpeakerPayouts } from "@/lib/payments/payouts";
+import { createLogger } from "@/lib/logger";
+import type { PayoutStatus } from "@/lib/types/database";
 
-const PAYOUT_LABELS: Record<PayoutStatus, string> = {
-  PENDING: "In escrow",
-  DUE: "Available",
-  PAID: "Paid out",
-  ON_HOLD: "On hold",
-  CANCELLED: "Cancelled",
-};
+const log = createLogger("speaker-earnings-page");
 
-const PAYOUT_STYLES: Record<PayoutStatus, string> = {
-  PENDING: "bg-secondary/15 text-secondary border border-secondary/30",
-  DUE: "bg-primary/10 text-primary border border-primary/20",
-  PAID: "bg-success/15 text-success border border-success/30",
-  ON_HOLD: "bg-danger/15 text-danger border border-danger/30",
-  CANCELLED: "bg-muted/15 text-muted border border-muted/30",
-};
+interface EarningsPayout {
+  id: string;
+  status: PayoutStatus;
+  amount_cents: number | string;
+  available_at: string | null;
+  eft_reference: string | null;
+  bookings: {
+    event_name: string;
+    booking_number: string;
+    event_date: string | null;
+    profiles: { full_name: string } | null;
+  } | null;
+  payments: {
+    gross_amount_cents: number;
+    commission_amount_cents: number;
+    commission_rate_bps: number;
+  } | null;
+}
 
 export default async function SpeakerEarningsPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const { data: sp } = await supabase
-    .from("speaker_profiles")
-    .select("id, speaking_fee_zar")
-    .eq("user_id", user.id)
-    .single();
+  // RLS-scoped user client, not the service role: a speaker only ever reads
+  // their own payouts.
+  const [speakerId, supabase] = await Promise.all([getMySpeakerProfileId(), createClient()]);
 
   // Guarded rather than falling back to "", which Postgres rejects for a uuid
   // column (22P02) instead of matching no rows.
-  const [{ data: rawPayouts }, { data: details }] = sp
+  const [payoutsResult, detailsResult] = speakerId
     ? await Promise.all([
         supabase
           .from("payouts")
           .select(
-            "*, bookings(event_name, booking_number, event_date, profiles(full_name)), payments(gross_amount_cents, commission_amount_cents, commission_rate_bps)"
+            "id, status, amount_cents, available_at, eft_reference, bookings(event_name, booking_number, event_date, profiles(full_name)), payments(gross_amount_cents, commission_amount_cents, commission_rate_bps)"
           )
-          .eq("speaker_id", sp.id)
+          .eq("speaker_id", speakerId)
           .order("created_at", { ascending: false }),
         supabase
           .from("speaker_payout_details")
           .select("speaker_id")
-          .eq("speaker_id", sp.id)
+          .eq("speaker_id", speakerId)
           .maybeSingle(),
       ])
-    : [{ data: [] }, { data: null }];
+    : [
+        { data: [], error: null },
+        { data: null, error: null },
+      ];
 
-  const payouts = (rawPayouts ?? []) as (Payout & {
-    payments?: {
-      gross_amount_cents: number;
-      commission_amount_cents: number;
-      commission_rate_bps: number;
-    };
-  })[];
+  if (payoutsResult.error) log.error("payouts query failed", { cause: payoutsResult.error });
+  if (detailsResult.error) log.error("payout details query failed", { cause: detailsResult.error });
 
-  const sumWhere = (statuses: PayoutStatus[]) =>
-    payouts
-      .filter((p) => statuses.includes(p.status))
-      .reduce((sum, p) => sum + Number(p.amount_cents), 0);
+  const payouts = (payoutsResult.data ?? []) as unknown as EarningsPayout[];
+  const now = requestNowMs();
 
-  const paidOut = sumWhere(["PAID"]);
-  const available = sumWhere(["DUE"]);
-  const inEscrow = sumWhere(["PENDING"]);
+  // Every figure here is the speaker's NET share from payouts — never the
+  // gross booking fee.
+  const summary = summariseSpeakerPayouts(payouts, now);
 
-  const stats = [
-    { label: "Paid Out", value: formatZARCents(paidOut), icon: Banknote, color: "#6B9E78" },
-    { label: "Available", value: formatZARCents(available), icon: Wallet, color: "#031E57" },
-    { label: "In Escrow", value: formatZARCents(inEscrow), icon: Clock, color: "#629DAB" },
-    {
-      label: "Standard Fee",
-      value: formatZAR(sp?.speaking_fee_zar ?? 0),
-      icon: DollarSign,
-      // Not orange: a stat tile is not a thing you click. See docs/DESIGN.md.
-      color: "#629DAB",
-    },
-  ];
+  // Only nag about bank details when we actually know they are missing.
+  const missingBankDetails = !detailsResult.error && !detailsResult.data && payouts.length > 0;
 
   return (
     <div>
       <TopBar title="Earnings" subtitle="What you have earned, after platform commission" />
 
       <div className="p-4 sm:p-6 space-y-6">
-        {!details && payouts.length > 0 && (
+        {missingBankDetails && (
           <div className="bg-white border border-danger/30 rounded-[12px] p-5">
             <p className="font-archivo font-bold text-primary">No bank account on file</p>
             <p className="text-sm text-ink mt-1">
@@ -106,25 +98,36 @@ export default async function SpeakerEarningsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div
-                key={stat.label}
-                className="bg-white border border-line rounded-[12px] p-5 relative overflow-hidden"
-              >
-                <div
-                  className="absolute top-0 left-0 right-0 h-0.5"
-                  style={{ background: `linear-gradient(90deg, ${stat.color}, transparent)` }}
-                />
-                <Icon size={18} style={{ color: stat.color }} className="mb-2" />
-                <p className="font-space-mono text-2xl font-bold text-ink">{stat.value}</p>
-                <p className="text-xs text-muted mt-0.5">{stat.label}</p>
-              </div>
-            );
-          })}
-        </div>
+        {payoutsResult.error ? (
+          <LoadError title="Your earnings could not be loaded" />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MoneyTile
+              label="Paid Out"
+              value={formatZARCents(summary.paidOut)}
+              tone="success"
+              icon={Banknote}
+            />
+            <MoneyTile
+              label="Available"
+              value={formatZARCents(summary.available)}
+              tone="secondary"
+              icon={Wallet}
+            />
+            <MoneyTile
+              label="In Escrow"
+              value={formatZARCents(summary.inEscrow)}
+              tone="primary"
+              icon={Clock}
+            />
+            <MoneyTile
+              label="On Hold"
+              value={formatZARCents(summary.onHold)}
+              tone="danger"
+              icon={PauseCircle}
+            />
+          </div>
+        )}
 
         {/* The commission is stated plainly. A speaker should never have to
             discover the 15% by subtracting two numbers. */}
@@ -146,9 +149,13 @@ export default async function SpeakerEarningsPage() {
             <h2 className="font-archivo font-bold text-primary">Fee History</h2>
           </div>
 
-          {payouts.length === 0 ? (
+          {payoutsResult.error ? (
+            <div className="p-4">
+              <LoadError title="Your fee history could not be loaded" />
+            </div>
+          ) : payouts.length === 0 ? (
             <div className="text-center py-12">
-              <DollarSign size={32} className="text-line mx-auto mb-3" />
+              <DollarSign size={32} className="text-line mx-auto mb-3" aria-hidden="true" />
               <p className="font-archivo text-muted">No earnings yet</p>
               <p className="text-sm text-muted mt-1">
                 Earnings appear here once a client has paid for a booking
@@ -160,6 +167,7 @@ export default async function SpeakerEarningsPage() {
                 const gross = Number(payout.payments?.gross_amount_cents ?? 0);
                 const commission = Number(payout.payments?.commission_amount_cents ?? 0);
                 const booking = payout.bookings;
+                const badge = speakerPayoutBadge(payout, now);
 
                 return (
                   <div key={payout.id} className="px-5 py-4">
@@ -181,9 +189,7 @@ export default async function SpeakerEarningsPage() {
                           {formatZARCents(payout.amount_cents)}
                         </p>
                         <div className="mt-1">
-                          <Badge className={PAYOUT_STYLES[payout.status]}>
-                            {PAYOUT_LABELS[payout.status]}
-                          </Badge>
+                          <Badge className={badge.className}>{badge.label}</Badge>
                         </div>
                       </div>
                     </div>
@@ -215,6 +221,12 @@ export default async function SpeakerEarningsPage() {
                           </p>
                         </div>
                       </div>
+                    )}
+
+                    {badge.label === "In escrow" && payout.status === "DUE" && payout.available_at && (
+                      <p className="text-xs text-muted mt-2">
+                        Releases {new Date(payout.available_at).toLocaleDateString("en-ZA")}
+                      </p>
                     )}
 
                     {payout.status === "PAID" && payout.eft_reference && (
