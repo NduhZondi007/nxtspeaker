@@ -63,6 +63,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the row-list pattern for queues, and account-number masking.
 
 ### Changed
+- **Database performance** (`20261005130000_rls-performance-and-indexes.sql`). RLS
+  policies no longer re-run `auth.uid()` and a speaker_profiles lookup for every row,
+  and profile visibility uses a once-per-query counterparty set instead of a per-row
+  join. On 30k bookings / 90k messages: messages ~1.7 s → 14 ms, profiles ~120 ms →
+  12 ms, booking lists 75 ms → 10 ms. Adds the missing reviews/created_at/payouts
+  indexes, drops three redundant ones, and adds `admin_money_totals()` so admin
+  totals stop being summed over truncated lists. Behaviour is pinned by
+  `supabase/tests/20_visibility.test.sql`, which passes before and after.
 - **Brand mark replaced with the 2026 NXT SPEAKER badge.** All lockups (horizontal,
   stacked, badge-only), `icon.png`, the Apple touch icon, the PWA manifest icon and the
   OG-image watermark now use the circular navy + orange badge. The teal and lavender
@@ -111,6 +119,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
   with palette tokens per `docs/DESIGN.md`.
 
 ### Fixed
+- **Security — database write paths hardened** (`20261005120000_security-hardening.sql`).
+  Found by the 2026-10-05 audit; each is now covered by `supabase/tests/10_security.test.sql`.
+  - A client could insert a booking already at `PAID`/`COMPLETED` at any fee straight
+    through PostgREST. Inserts now take status `PENDING` and the speaker's real fee from
+    the database, and only ACTIVE speakers are bookable.
+  - Any user could create an ACTIVE speaker profile with a forged rating, and speakers
+    could delete their own profile. Speaker rows are now created by the platform only.
+  - Users could rewrite their profile email and point avatars/portfolio photos at any
+    URL; speakers could mark their own bank details verified.
+  - Clients could move the date or venue of an accepted or paid booking, and either
+    party could write admin-only columns. Booking updates are now an allow-list.
+  - A payout could be marked paid before the event was delivered or while on hold.
+  - A late success event could resurrect a refunded payment, and money arriving on a
+    cancelled booking created a payout nothing would close. Both now park the payment
+    as `NEEDS_REVIEW`.
+- **Database tests in CI.** `npm run test:db` replays every migration on plain Postgres
+  and runs the security tests; `.github/workflows/db-tests.yml` runs it on PRs.
 - **Booking chat felt slow and laggy.** A sent message waited on the server action
   *and* the Supabase Realtime round trip before appearing, and the text box was
   disabled (losing focus) the whole time. The inserted message is now shown as soon as
