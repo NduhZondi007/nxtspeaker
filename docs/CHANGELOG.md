@@ -96,6 +96,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
   returning a Supabase client.
 - Middleware no longer runs a Supabase session refresh for `api/webhooks`. A provider
   webhook carries no cookies, so the refresh could never do anything for it.
+- **Admin payment and payout pages call `requireRole("ADMIN")` themselves** instead of
+  relying only on the admin layout, since they read with the service-role key.
+- Payout status badges, money tiles, pagination and load-error states for the payment
+  surfaces are shared from `src/components/payments/`; tile colours use theme tokens.
+- The client payment page reads the booking and payment in parallel, and payment pages
+  select explicit columns.
 
 ### Fixed
 - **Booking chat felt slow and laggy.** A sent message waited on the server action
@@ -122,6 +128,36 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Two pre-existing `docs/DESIGN.md` violations: the speaker earnings "Upcoming" tile and
   the admin "Active Speakers" tile used `#FF5700`. A stat tile is not something you
   click, so orange never belonged on either.
+- **Yoco webhook acknowledged failures as success.** supabase-js returns `{ error }`
+  rather than throwing, so a failed payment lookup read as "not found", a failed
+  `record_successful_payment` call returned 200 "applied", and a failed processed-mark
+  was ignored. Every step now fails into a 500 with the event left unprocessed, so Yoco
+  retries; a dedupe insert failure other than a unique violation is treated as transient.
+- **Webhook recorded money on events that do not mean money arrived.** Only
+  `payment.succeeded` is recorded now (`payment.created` and `checkout.completed` are
+  stored and ignored), and a test-mode event on a live `sk_live_` key is acknowledged
+  but never recorded.
+- **A client could pay twice while a payment was under review.** `NEEDS_REVIEW` now
+  blocks a new checkout and the payment panel and result page say the payment is being
+  reviewed.
+- **Payment rows could get stuck in `CREATED`,** blocking the booking from ever being
+  paid. The return URL is resolved before the row is inserted, any failure after the
+  insert marks the row `FAILED`, and a `CREATED` row with no checkout older than 10
+  minutes is retired on the next attempt.
+- **Admin payout and refund actions could race.** Mark-paid, hold and the refund's
+  payout update are now conditional updates (0 rows = "This payout changed — refresh and
+  try again"). A refund is refused once the speaker has been paid, a pending refund puts
+  the payout `ON_HOLD`, and payouts created before the speaker added bank details are no
+  longer unpayable: mark-paid freezes the speaker's current details onto them.
+- **Admin money tiles were summed over a truncated list.** `/admin/payments` and
+  `/admin/payouts` tiles now come from the `admin_money_totals()` RPC, lists are paginated
+  (`?page=`), and a failed query shows an error instead of "Everything reconciles" or an
+  empty queue.
+- **Speaker "Available" included payouts still inside the 7-day hold window.** Those now
+  count as in escrow, and every speaker earnings figure is a net payout.
+- Payment surfaces no longer return raw database error messages to users, the payout
+  form's Bank and Account type selects are properly labelled, and the client payment page
+  no longer nests a button inside a link.
 
 
 ### Changed
