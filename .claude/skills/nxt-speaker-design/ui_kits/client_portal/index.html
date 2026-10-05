@@ -1,0 +1,39 @@
+<!-- @dsCard group="Client Portal" viewport="1280x820" name="Client portal" subtitle="Dashboard, discovery, speaker sheet and booking wizard" -->
+<!-- @startingPoint section="Client Portal" subtitle="Signed-in client app shell with working navigation" viewport="1280x820" -->
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>NXT Speaker — Client Portal</title>
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>html,body{margin:0;height:100%}#root{height:100%}@keyframes spin{to{transform:rotate(360deg)}}</style></head>
+<body><div id="root"></div>
+<script type="text/babel" src="Screens.jsx"></script>
+<script type="text/babel">
+const {Sidebar,ToastStack}=window.NXTSpeakerDesignSystem_f20208;
+function App(){
+  const [route,setRoute]=React.useState('/client/dashboard');
+  const [sheet,setSheet]=React.useState(null);
+  const [wizard,setWizard]=React.useState(null);
+  const [toasts,setToasts]=React.useState([]);
+  function submit(){
+    const name=wizard?wizard.name.split(' ')[0]:'The speaker';
+    setWizard(null);setRoute('/client/bookings');
+    setToasts([{id:String(Date.now()),type:'success',title:'Booking request sent!',
+      message:name+' will review and respond within 48 hours.'}]);}
+  return <div style={{display:'flex',height:'100%',background:'var(--color-soft)'}}>
+    <Sidebar role="CLIENT" userName="Lerato Dube" active={route} onNavigate={setRoute} assetBase="../../assets"/>
+    <main style={{flex:1,minWidth:0,overflowY:'auto'}}>
+      {route==='/client/dashboard'&&<window.Dashboard onNavigate={setRoute}/>}
+      {route==='/client/discover'&&<window.Discover onOpen={setSheet}/>}
+      {route==='/client/bookings'&&<window.Bookings onOpen={()=>{}}/>}
+    </main>
+    <window.SpeakerSheet speaker={sheet} onClose={()=>setSheet(null)}
+      onBook={s=>{setSheet(null);setWizard(s)}}/>
+    <window.BookingWizard speaker={wizard} onClose={()=>setWizard(null)} onSubmit={submit}/>
+    <ToastStack toasts={toasts} onDismiss={id=>setToasts(t=>t.filter(x=>x.id!==id))}/>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script></body></html>

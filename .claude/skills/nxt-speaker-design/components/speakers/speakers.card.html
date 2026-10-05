@@ -1,0 +1,24 @@
+<!-- @dsCard group="Components" viewport="700x430" name="Speaker card & filters" subtitle="The hero component plus the discovery filter bar" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:16px;background:#fff;font:var(--type-body)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div id="root"></div>
+<script type="text/babel">
+const {SpeakerCard,SpeakerFilters}=window.NXTSpeakerDesignSystem_f20208;
+function Demo(){
+  const [f,setF]=React.useState({search:'',expertise:['Leadership'],available:null,format:'',minFee:0,maxFee:200000,sort:'rating_desc'});
+  return <>
+    <SpeakerFilters filters={f} onChange={setF}/>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14}}>
+      <SpeakerCard name="Thabo Mokoena" title="Rebuilding trust after a public failure" category="Leadership" fee="R85 000" location="Johannesburg"/>
+      <SpeakerCard name="Naledi Khumalo" title="What AI actually changes about your operating model" category="AI" fee="R120 000" location="Cape Town"/>
+      <SpeakerCard name="Sipho Dlamini" title="Designing for the next billion users" category="Innovation" fee="R64 000" location="Durban"/>
+    </div>
+  </>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

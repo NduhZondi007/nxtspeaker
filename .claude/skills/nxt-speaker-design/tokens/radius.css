@@ -1,0 +1,13 @@
+/* Sharp by design — nothing above 8px except pills and avatars.
+   3px is the button radius (rounded-[3px]); 12px only on the modal panel. */
+:root{
+  --radius-sm:2px;
+  --radius-md:4px;
+  --radius-lg:8px;
+  --radius-pill:999px;
+  --radius-button:3px;
+  --radius-input:4px;
+  --radius-card:8px;
+  --radius-modal:12px;
+  --radius-avatar:50%;
+}

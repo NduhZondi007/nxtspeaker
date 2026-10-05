@@ -1,0 +1,54 @@
+/* Values copied verbatim from src/app/globals.css @theme + docs/DESIGN.md.
+   Never introduce a colour that is not here. */
+:root{
+  /* Core palette */
+  --color-primary:#031E57;    /* Speaker Navy — text, headers, dark surfaces */
+  --color-secondary:#629DAB;  /* Stage Teal — borders, labels, structure, secondary CTAs */
+  --color-tertiary:#FFFFFF;   /* Pure White — dominant canvas */
+  --color-accent:#FF5700;     /* Signal Orange — ACTIONS ONLY */
+  --color-support:#ECD4F5;    /* Lavender — chips, gentle fills */
+
+  /* Neutrals */
+  --color-ink:#46506A;        /* body copy */
+  --color-soft:#FAFAFB;       /* off-white section background */
+  --color-line:#ECECF0;       /* hairline borders, dividers */
+  --color-muted:#9AA1B0;      /* meta text, captions, timestamps */
+
+  /* Accent + interaction states */
+  --color-accent-hover:#E64E00;
+  --color-accent-disabled:#FFD9C7;
+  --color-accent-disabled-text:#B53E00;
+  --color-primary-hover:#021540;
+  --color-support-hover:#E0C4EF;
+
+  /* Semantic */
+  --color-success:#6B9E78;
+  --color-danger:#C47A6A;
+
+  /* Brand mark ink — the logo badge is drawn in these two only */
+  --logo-navy:#021E57;
+  --logo-orange:#FF5700;
+
+  /* Semantic aliases */
+  --text-heading:var(--color-primary);
+  --text-body:var(--color-ink);
+  --text-meta:var(--color-muted);
+  --text-inverse:var(--color-tertiary);
+  --text-label:var(--color-secondary);
+  --text-link:var(--color-secondary);
+  --text-link-hover:var(--color-primary);
+
+  --surface-page:var(--color-tertiary);
+  --surface-soft:var(--color-soft);
+  --surface-card:var(--color-tertiary);
+  --surface-dark:var(--color-primary);
+  --surface-chip:var(--color-support);
+  --surface-action:var(--color-accent);
+
+  --border-hairline:var(--color-line);
+  --border-structure:var(--color-secondary);
+  --border-danger:var(--color-danger);
+
+  --overlay-scrim:rgba(70,80,106,.6);   /* bg-ink/60 in Modal.tsx */
+  --focus-ring:rgba(255,87,0,.2);       /* focus:ring-accent/20 */
+}

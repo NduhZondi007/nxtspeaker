@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Design-system skill: browser prototypes and a generated bundle, not app code.
+    ".claude/**",
   ]),
   {
     rules: {

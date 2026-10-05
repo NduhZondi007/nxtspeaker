@@ -1,0 +1,25 @@
+<!-- @dsCard group="Components" viewport="700x380" name="App shell" subtitle="Navy sidebar + sticky translucent top bar" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../../_ds_bundle.js"></script>
+<style>body{margin:0;padding:16px;background:#fff;font:var(--type-body)}#root{display:flex;flex-direction:column;gap:14px}.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}@keyframes spin{to{transform:rotate(360deg)}}</style></head><body><div id="root"></div>
+<script type="text/babel">
+const {Sidebar,TopBar,Button}=window.NXTSpeakerDesignSystem_f20208;
+function Demo(){
+  const [active,setActive]=React.useState('/client/discover');
+  return <div style={{display:'flex',height:346,border:'1px solid var(--color-line)',borderRadius:'var(--radius-lg)',overflow:'hidden'}}>
+    <Sidebar role="CLIENT" userName="Lerato Dube" active={active} onNavigate={setActive} assetBase="../../assets"/>
+    <div style={{flex:1,minWidth:0,background:'var(--color-soft)',overflow:'auto'}}>
+      <TopBar title="Find Speakers" subtitle="184 speakers available">
+        <Button variant="gold" size="sm">New booking</Button>
+      </TopBar>
+      <div style={{padding:'var(--space-6)',fontSize:'var(--text-sm)',color:'var(--color-muted)'}}>{active}</div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

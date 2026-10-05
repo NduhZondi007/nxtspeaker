@@ -1,0 +1,47 @@
+:root{
+  --font-display:"Archivo",system-ui,sans-serif;
+  --font-body:"Hanken Grotesk",system-ui,sans-serif;
+  --font-mono:"Space Mono",ui-monospace,monospace;
+
+  /* Sizes as used in the app (Tailwind text-* equivalents) */
+  --text-9:9px;
+  --text-10:10px;
+  --text-2xs:11px;   /* Space Mono label */
+  --text-xs:12px;
+  --text-sm:14px;
+  --text-base:16px;
+  --text-lg:18px;
+  --text-xl:20px;
+  --text-2xl:24px;
+  --text-3xl:30px;
+  --text-h2:34px;
+  --text-h1:52px;
+  --text-hero:68px;
+
+  --leading-none:1;
+  --leading-tight:1.1;
+  --leading-snug:1.35;
+  --leading-body:1.6;
+
+  --weight-regular:400;
+  --weight-medium:500;
+  --weight-semibold:600;
+  --weight-bold:700;
+  --weight-extrabold:800;
+  --weight-black:900;
+
+  --tracking-tight:-0.02em;
+  --tracking-wide:0.05em;
+  --tracking-label:0.12em;
+  --tracking-widest:0.2em;
+
+  /* Composed roles — H1/H2 are Archivo uppercase, labels are Space Mono */
+  --type-h1:var(--weight-black) var(--text-h1)/var(--leading-tight) var(--font-display);
+  --type-h2:var(--weight-extrabold) var(--text-h2)/var(--leading-tight) var(--font-display);
+  --type-h3:var(--weight-black) var(--text-xl)/var(--leading-tight) var(--font-display);
+  --type-lead:var(--weight-semibold) var(--text-lg)/var(--leading-snug) var(--font-body);
+  --type-body:var(--weight-regular) var(--text-base)/var(--leading-body) var(--font-body);
+  --type-small:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--font-body);
+  --type-label:var(--weight-bold) var(--text-2xs)/1.2 var(--font-mono);
+  --type-price:var(--weight-bold) var(--text-base)/1 var(--font-mono);
+}
