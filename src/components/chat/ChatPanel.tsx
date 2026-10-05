@@ -4,19 +4,22 @@ import { useEffect, useRef } from "react";
 import { ChatInput, type SendResult } from "@/components/chat/ChatInput";
 import { ChatLocked } from "@/components/chat/ChatLocked";
 import { useRealtimeMessages } from "@/lib/hooks/useRealtimeMessages";
-import { canChat } from "@/lib/utils/booking";
-import type { Booking, Message, Profile } from "@/lib/types/database";
+import { canChat, formatTimeSAST } from "@/lib/utils/booking";
+import type { BookingStatus, Message, Profile } from "@/lib/types/database";
 
 interface ChatPanelProps {
-  booking: Booking;
+  /** Only the id and status are needed — the full booking row (with the other
+   *  party's joined profile) has no business being serialised to the browser. */
+  bookingId: string;
+  status: BookingStatus;
   initialMessages: Message[];
   currentUser: Profile;
   onSend: (bookingId: string, content: string) => Promise<SendResult | void>;
 }
 
-export function ChatPanel({ booking, initialMessages, currentUser, onSend }: ChatPanelProps) {
-  const chatEnabled = canChat(booking.status);
-  const { messages, appendMessage } = useRealtimeMessages(booking.id, initialMessages, currentUser);
+export function ChatPanel({ bookingId, status, initialMessages, currentUser, onSend }: ChatPanelProps) {
+  const chatEnabled = canChat(status);
+  const { messages, appendMessage } = useRealtimeMessages(bookingId, initialMessages, currentUser);
   const bottomRef = useRef<HTMLDivElement>(null);
   const hasScrolledRef = useRef(false);
 
@@ -28,7 +31,7 @@ export function ChatPanel({ booking, initialMessages, currentUser, onSend }: Cha
   }, [messages]);
 
   async function handleSend(content: string): Promise<SendResult | void> {
-    const result = await onSend(booking.id, content);
+    const result = await onSend(bookingId, content);
     if (result?.data) appendMessage({ ...result.data, profiles: currentUser });
     return result;
   }
@@ -39,7 +42,12 @@ export function ChatPanel({ booking, initialMessages, currentUser, onSend }: Cha
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div
+        className="flex-1 overflow-y-auto p-4 space-y-3"
+        role="log"
+        aria-live="polite"
+        aria-label="Messages"
+      >
         {messages.length === 0 && (
           <div className="text-center py-8 text-sm text-muted">
             No messages yet. Start the conversation.
@@ -60,7 +68,7 @@ export function ChatPanel({ booking, initialMessages, currentUser, onSend }: Cha
                 )}
                 <div
                   className={[
-                    "px-3.5 py-2.5 rounded-[12px] text-sm leading-relaxed break-words",
+                    "px-3.5 py-2.5 rounded-[8px] text-sm leading-relaxed break-words",
                     isMe
                       ? "bg-primary text-white rounded-br-sm"
                       : "bg-soft text-ink rounded-bl-sm",
@@ -68,12 +76,11 @@ export function ChatPanel({ booking, initialMessages, currentUser, onSend }: Cha
                 >
                   {msg.content}
                 </div>
-                <p className="text-[10px] text-muted px-1">
-                  {new Date(msg.created_at).toLocaleTimeString("en-ZA", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </p>
+                {/* Explicit zone and clock: the server renders in UTC and the
+                    browser in SAST, which mismatched on hydration. */}
+                <time dateTime={msg.created_at} className="text-[10px] text-muted px-1">
+                  {formatTimeSAST(msg.created_at)}
+                </time>
               </div>
             </div>
           );
