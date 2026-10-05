@@ -11,21 +11,13 @@ interface SpeakerCardProps {
 }
 
 export function SpeakerCard({ speaker, onClick }: SpeakerCardProps) {
-  const primaryCategory = speaker.expertise[0] ?? "Speaker";
+  const primaryCategory = speaker.expertise?.[0] ?? "Speaker";
   const name = speaker.profiles?.full_name ?? "Speaker";
 
   return (
     <div
       onClick={() => onClick(speaker)}
-      className="group relative bg-white border border-line rounded-[8px] overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-[3px]"
-      style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow =
-          "0 8px 32px rgba(98,157,171,0.20), 0 0 0 1px rgba(98,157,171,0.25)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 3px rgba(0,0,0,0.06)";
-      }}
+      className="group relative bg-white border border-line rounded-[8px] overflow-hidden cursor-pointer shadow-card transition-all duration-200 hover:-translate-y-[3px] hover:shadow-card-hover"
     >
       {/* Speaker image */}
       <div className="relative w-full aspect-[4/3] bg-soft overflow-hidden">
@@ -35,7 +27,7 @@ export function SpeakerCard({ speaker, onClick }: SpeakerCardProps) {
             alt={name}
             fill
             className="object-cover"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-primary/10">
@@ -48,7 +40,7 @@ export function SpeakerCard({ speaker, onClick }: SpeakerCardProps) {
         {/* Location overlay */}
         {speaker.location && (
           <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-0.5 bg-black/40 rounded-full backdrop-blur-sm">
-            <MapPin size={9} className="text-white/80" />
+            <MapPin size={9} className="text-white/80" aria-hidden="true" />
             <span className="text-[9px] text-white/90 font-space-mono">{speaker.location}</span>
           </div>
         )}
@@ -79,6 +71,8 @@ export function SpeakerCard({ speaker, onClick }: SpeakerCardProps) {
             <p className="text-[9px] text-muted font-space-mono mt-0.5">per event</p>
           </div>
           <button
+            type="button"
+            aria-label={`Book ${name}`}
             onClick={(e) => { e.stopPropagation(); onClick(speaker); }}
             className="px-3 py-1.5 text-xs font-semibold text-white bg-accent hover:bg-accent-hover rounded-[3px] transition-colors"
           >
