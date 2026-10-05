@@ -10,6 +10,16 @@ export function getBaseUrl(): string {
   // when NEXT_PUBLIC_APP_URL hasn't been set for that environment, while
   // still failing loudly outside Vercel (e.g. local dev with no env file)
   // instead of silently pointing at the wrong domain.
+  //
+  // On a production deploy VERCEL_URL is the unique per-deployment hostname
+  // (nxtspeaker-abc123.vercel.app), so canonical URLs, OG images and auth
+  // redirects pointed at a deployment rather than the real domain. Vercel
+  // exposes that domain as VERCEL_PROJECT_PRODUCTION_URL.
+  const productionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (process.env.VERCEL_ENV === "production" && productionUrl) {
+    return `https://${productionUrl}`;
+  }
+
   const vercelUrl = process.env.VERCEL_URL;
   if (vercelUrl) {
     return `https://${vercelUrl}`;
