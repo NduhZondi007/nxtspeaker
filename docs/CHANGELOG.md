@@ -63,6 +63,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
   the row-list pattern for queues, and account-number masking.
 
 ### Changed
+- **Database performance** (`20261005130000_rls-performance-and-indexes.sql`). RLS
+  policies no longer re-run `auth.uid()` and a speaker_profiles lookup for every row,
+  and profile visibility uses a once-per-query counterparty set instead of a per-row
+  join. On 30k bookings / 90k messages: messages ~1.7 s → 14 ms, profiles ~120 ms →
+  12 ms, booking lists 75 ms → 10 ms. Adds the missing reviews/created_at/payouts
+  indexes, drops three redundant ones, and adds `admin_money_totals()` so admin
+  totals stop being summed over truncated lists. Behaviour is pinned by
+  `supabase/tests/20_visibility.test.sql`, which passes before and after.
 - **Brand mark replaced with the 2026 NXT SPEAKER badge.** All lockups (horizontal,
   stacked, badge-only), `icon.png`, the Apple touch icon, the PWA manifest icon and the
   OG-image watermark now use the circular navy + orange badge. The teal and lavender
