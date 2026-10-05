@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { Landmark, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -48,6 +48,8 @@ interface PayoutDetailsFormProps {
 export function PayoutDetailsForm({ existing, onSave }: PayoutDetailsFormProps) {
   const { success, error: toastError } = useToast();
   const [pending, startTransition] = useTransition();
+  const bankId = useId();
+  const accountTypeId = useId();
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   // An existing account is masked until the speaker chooses to change it —
@@ -112,12 +114,12 @@ export function PayoutDetailsForm({ existing, onSave }: PayoutDetailsFormProps) 
 
         {existing.verified_at ? (
           <div className="mt-4 pt-4 border-t border-line flex items-center gap-2">
-            <ShieldCheck size={14} className="text-success" />
+            <ShieldCheck size={14} className="text-success" aria-hidden="true" />
             <p className="text-xs text-muted">Verified by NxtSpeaker.</p>
           </div>
         ) : (
           <div className="mt-4 pt-4 border-t border-line flex items-start gap-2">
-            <ShieldCheck size={14} className="text-secondary shrink-0 mt-0.5" />
+            <ShieldCheck size={14} className="text-secondary shrink-0 mt-0.5" aria-hidden="true" />
             <p className="text-xs text-muted leading-relaxed">
               Awaiting verification. Payouts can still be scheduled — NxtSpeaker confirms the
               account before the first transfer.
@@ -131,7 +133,7 @@ export function PayoutDetailsForm({ existing, onSave }: PayoutDetailsFormProps) 
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-line rounded-[12px] p-5">
       <div className="flex items-center gap-2 mb-5">
-        <Landmark size={16} className="text-secondary" />
+        <Landmark size={16} className="text-secondary" aria-hidden="true" />
         <h2 className="font-archivo font-bold text-primary">Bank account</h2>
       </div>
 
@@ -147,10 +149,14 @@ export function PayoutDetailsForm({ existing, onSave }: PayoutDetailsFormProps) 
         </div>
 
         <div>
-          <label className="block text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide mb-1.5">
+          <label
+            htmlFor={bankId}
+            className="block text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide mb-1.5"
+          >
             Bank
           </label>
           <select
+            id={bankId}
             value={form.bank_name}
             onChange={(e) => set("bank_name", e.target.value)}
             required
@@ -166,10 +172,14 @@ export function PayoutDetailsForm({ existing, onSave }: PayoutDetailsFormProps) 
         </div>
 
         <div>
-          <label className="block text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide mb-1.5">
+          <label
+            htmlFor={accountTypeId}
+            className="block text-[10px] font-space-mono font-semibold text-muted uppercase tracking-wide mb-1.5"
+          >
             Account type
           </label>
           <select
+            id={accountTypeId}
             value={form.account_type}
             onChange={(e) => set("account_type", e.target.value as BankAccountType)}
             className="w-full rounded-[4px] border-[1.5px] border-secondary bg-white px-3 py-2.5 text-sm text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
@@ -231,7 +241,12 @@ export function PayoutDetailsForm({ existing, onSave }: PayoutDetailsFormProps) 
           Save payout details
         </Button>
         {existing && (
-          <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setEditing(false)}
+            disabled={pending}
+          >
             Cancel
           </Button>
         )}
