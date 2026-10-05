@@ -1,67 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { supabaseState } = vi.hoisted(() => ({
-  supabaseState: {
-    user: null as { id: string } | null,
-    /** Terminal result per table, in the order the action queries them. */
-    responders: {} as Record<string, (state: QueryState) => { data: unknown; error: unknown }>,
-    writes: [] as { table: string; op: string; payload: Record<string, unknown> }[],
-  },
-}));
-
-interface QueryState {
-  table: string;
-  op: "select" | "insert" | "update";
-  payload?: Record<string, unknown>;
-  filters: Record<string, unknown>;
-}
+import {
+  supabaseState,
+  resetSupabaseState,
+  supabaseServerMock,
+} from "@/__tests__/helpers/supabase-mock";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: async () => ({
-    auth: {
-      getUser: async () => ({ data: { user: supabaseState.user }, error: null }),
-    },
-    from(table: string) {
-      const state: QueryState = { table, op: "select", filters: {} };
-
-      const resolve = () => {
-        const responder = supabaseState.responders[table];
-        if (!responder) throw new Error(`No mock responder registered for table "${table}"`);
-        return responder(state);
-      };
-
-      const builder: Record<string, unknown> = {
-        select: () => builder,
-        eq: (column: string, value: unknown) => {
-          state.filters[column] = value;
-          return builder;
-        },
-        in: () => builder,
-        order: () => builder,
-        limit: () => builder,
-        insert: (payload: Record<string, unknown>) => {
-          state.op = "insert";
-          state.payload = payload;
-          supabaseState.writes.push({ table, op: "insert", payload });
-          return builder;
-        },
-        update: (payload: Record<string, unknown>) => {
-          state.op = "update";
-          state.payload = payload;
-          supabaseState.writes.push({ table, op: "update", payload });
-          return builder;
-        },
-        single: async () => resolve(),
-        maybeSingle: async () => resolve(),
-        then: (onFulfilled: (r: unknown) => unknown) => Promise.resolve(resolve()).then(onFulfilled),
-      };
-
-      return builder;
-    },
-  }),
-}));
+vi.mock("@/lib/supabase/server", () => supabaseServerMock());
 
 import { cancelBooking, createBooking, updateBookingStatus } from "@/app/actions/bookings";
 import { submitReview } from "@/app/actions/reviews";
@@ -110,9 +56,8 @@ function ok(data: unknown) {
 }
 
 beforeEach(() => {
+  resetSupabaseState();
   supabaseState.user = { id: CLIENT_ID };
-  supabaseState.responders = {};
-  supabaseState.writes = [];
 });
 
 describe("createBooking", () => {
@@ -257,6 +202,10 @@ describe("updateBookingStatus", () => {
 });
 
 describe("cancelBooking", () => {
+  beforeEach(() => {
+    supabaseState.responders.payments = () => ok([]);
+  });
+
   it("cancels a pending booking", async () => {
     let call = 0;
     supabaseState.responders.bookings = () =>
