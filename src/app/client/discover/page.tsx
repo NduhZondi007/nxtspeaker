@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSpeakers, DEFAULT_SPEAKER_FILTERS } from "@/lib/data/speakers";
 import { DiscoverClient } from "./DiscoverClient";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("discover");
 
 // Server Component: fetches the default speaker list using the
 // cookie-authenticated server client. `ClientLayout` (src/app/client/layout.tsx)
@@ -14,7 +17,7 @@ export default async function DiscoverPage() {
   const { data: initialSpeakers, error } = await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS);
 
   if (error) {
-    console.error("[discover] initial speaker_profiles fetch failed:", error);
+    log.error("initial speaker_profiles fetch failed", { cause: error });
   }
 
   return <DiscoverClient initialSpeakers={initialSpeakers} />;

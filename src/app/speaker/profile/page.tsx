@@ -12,6 +12,9 @@ import { createClient } from "@/lib/supabase/client";
 import { updateSpeakerProfile, saveAvatarUrl, saveSpeakerPhotoUrl, removeSpeakerPhoto } from "@/app/actions/speakers";
 import { getEmbedUrl } from "@/lib/utils/media";
 import type { SpeakerProfile, Profile } from "@/lib/types/database";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("speaker/profile");
 
 const EXPERTISE_OPTIONS = [
   "Leadership", "AI", "Digital Transformation", "Sustainability", "ESG",
@@ -66,7 +69,7 @@ export default function SpeakerProfilePage() {
         }
       } catch (err) {
         if (cancelled) return;
-        console.error("[speaker/profile] load failed:", err);
+        log.error("load failed", { cause: err });
         setLoadError("Could not load your profile. Please refresh and try again.");
       } finally {
         if (!cancelled) setLoaded(true);

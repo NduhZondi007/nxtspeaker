@@ -7,6 +7,9 @@ import { getBaseUrl } from "@/lib/env";
 import { getPaymentProvider } from "@/lib/payments";
 import { DEFAULT_COMMISSION_BPS, splitCommission, toCents } from "@/lib/payments/commission";
 import type { SpeakerPayoutDetailsFormData } from "@/lib/types/database";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("payments");
 
 const BookingIdSchema = z.string().uuid("Invalid booking");
 
@@ -142,7 +145,7 @@ export async function initiateBookingPayment(bookingId: string) {
       idempotencyKey,
     });
   } catch (cause) {
-    console.error("[payments] provider threw while creating a checkout", cause);
+    log.error("provider threw while creating a checkout", { cause });
     checkout = { error: "The payment provider is unavailable right now." };
   }
 

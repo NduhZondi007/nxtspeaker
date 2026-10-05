@@ -24,6 +24,9 @@ import type {
   VerifySignatureInput,
   VerifySignatureResult,
 } from "./provider";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("yoco");
 
 const YOCO_CHECKOUTS_URL = "https://payments.yoco.com/api/checkouts";
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -61,15 +64,15 @@ const RefundResponse = z
 function describeFailure(status: number, body: string): string {
   switch (status) {
     case 403:
-      console.error("[yoco] request rejected — check YOCO_SECRET_KEY");
+      log.error("request rejected — check YOCO_SECRET_KEY");
       return "Payment provider configuration error. Please contact support.";
     case 409:
       return "This payment is already being set up. Give it a moment and try again.";
     case 422:
-      console.error("[yoco] idempotency key reused with a different payload");
+      log.error("idempotency key reused with a different payload");
       return "This payment could not be started again. Please refresh and retry.";
     default:
-      console.error(`[yoco] unexpected ${status} response`, body.slice(0, 500));
+      log.error("unexpected response", { status, body: body.slice(0, 500) });
       return "The payment provider is unavailable right now. Please try again shortly.";
   }
 }
@@ -93,7 +96,7 @@ async function postToYoco(
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (cause) {
-    console.error("[yoco] request failed", cause);
+    log.error("request failed", { cause });
     return { error: "Could not reach the payment provider. Please try again." };
   }
 
@@ -106,7 +109,7 @@ async function postToYoco(
   try {
     return { data: JSON.parse(text) };
   } catch {
-    console.error("[yoco] unparseable success response", text.slice(0, 500));
+    log.error("unparseable success response", { body: text.slice(0, 500) });
     return { error: "The payment provider returned an unreadable response." };
   }
 }
@@ -136,7 +139,7 @@ async function createCheckout(
 
   const parsed = CheckoutResponse.safeParse(result.data);
   if (!parsed.success) {
-    console.error("[yoco] checkout response failed validation", parsed.error.issues);
+    log.error("checkout response failed validation", { issues: parsed.error.issues });
     return { error: "The payment provider returned an unexpected response." };
   }
 
@@ -170,7 +173,7 @@ async function refundCheckout(
 
   const parsed = RefundResponse.safeParse(result.data);
   if (!parsed.success) {
-    console.error("[yoco] refund response failed validation", parsed.error.issues);
+    log.error("refund response failed validation", { issues: parsed.error.issues });
     return { error: "The payment provider returned an unexpected refund response." };
   }
 
