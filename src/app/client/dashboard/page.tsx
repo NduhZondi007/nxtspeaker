@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { StatCard } from "@/components/ui/StatCard";
 import { formatZAR } from "@/lib/utils/currency";
 import { isSpeakerListable } from "@/lib/utils/profile-completeness";
 import type { Booking, SpeakerProfile } from "@/lib/types/database";
@@ -61,7 +62,7 @@ export default async function ClientDashboardPage() {
   const stats = [
     { label: "Active Bookings",    value: String(activeBookings),    icon: CalendarCheck, color: "#FF5700" },
     { label: "Events Completed",   value: String(completedBookings), icon: TrendingUp,    color: "#629DAB" },
-    { label: "Total Spent",        value: formatZAR(totalSpent),     icon: DollarSign,    color: "#031E57" },
+    { label: "Total Spent",        value: formatZAR(totalSpent),     icon: DollarSign,    color: "#031E57", money: true },
     { label: "Speakers Available", value: String(speakerCount), icon: Search,        color: "#629DAB" },
   ];
 
@@ -73,18 +74,10 @@ export default async function ClientDashboardPage() {
       />
 
       <div className="p-4 sm:p-6 space-y-8">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <div key={stat.label} className="bg-white border border-line rounded-[12px] p-5 relative overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: `linear-gradient(90deg, ${stat.color}, transparent)` }} />
-                <Icon size={20} style={{ color: stat.color }} className="mb-3" />
-                <p className="font-space-mono text-2xl font-bold text-ink">{stat.value}</p>
-                <p className="text-xs text-muted mt-0.5">{stat.label}</p>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-4">
+          {stats.map((stat) => (
+            <StatCard key={stat.label} {...stat} />
+          ))}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
