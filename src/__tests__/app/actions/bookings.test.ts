@@ -46,7 +46,9 @@ function completeSpeaker(overrides: Record<string, unknown> = {}) {
     languages: ["English"],
     location: "Johannesburg",
     photo_urls: ["https://cdn.example/p1.png"],
-    profiles: { avatar_url: "https://cdn.example/a.png" },
+    // The public avatar lives on speaker_profiles; a client may not read the
+    // speaker's profiles row (audit H2).
+    display_avatar_url: "https://cdn.example/a.png",
     ...overrides,
   };
 }
@@ -129,7 +131,7 @@ describe("createBooking", () => {
       { location: null },
       { speaking_fee_zar: 0 },
       { photo_urls: [] },
-      { profiles: { avatar_url: null } },
+      { display_avatar_url: null },
     ]) {
       supabaseState.writes = [];
       supabaseState.responders.speaker_profiles = () => ok(completeSpeaker(missing));

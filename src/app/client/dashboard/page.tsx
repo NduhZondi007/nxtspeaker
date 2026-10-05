@@ -11,6 +11,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { formatZAR } from "@/lib/utils/currency";
 import { BOOKING_LIST_COLUMNS, formatDateSAST } from "@/lib/utils/booking";
 import { isSpeakerListable } from "@/lib/utils/profile-completeness";
+import { withPublicIdentity } from "@/lib/data/speakers";
 import type { Booking, BookingStatus, SpeakerProfile } from "@/lib/types/database";
 
 const log = createLogger("client-dashboard");
@@ -21,7 +22,7 @@ const ACTIVE_STATUSES: BookingStatus[] = ["PENDING", "CONFIRMED", "PAID", "DEPOS
 /** What the listability rule reads, plus what the widget shows. No email/phone. */
 const SPEAKER_WIDGET_COLUMNS =
   "id, title, speaking_fee_zar, status, bio, expertise, languages, location, photo_urls, avg_rating, " +
-  "profiles(id, full_name, avatar_url)";
+  "user_id, display_name, display_avatar_url";
 
 /**
  * The greeting used to be hardcoded to "Good morning", so it was wrong for
@@ -77,7 +78,9 @@ export default async function ClientDashboardPage() {
 
   const bookings = (recentRes.data ?? []) as unknown as Booking[];
   // Same listability rule as /client/discover — see getSpeakers.
-  const speakers = ((speakersRes.data ?? []) as unknown as SpeakerProfile[]).filter((sp) => isSpeakerListable(sp));
+  const speakers = ((speakersRes.data ?? []) as unknown as SpeakerProfile[])
+    .map(withPublicIdentity)
+    .filter((sp) => isSpeakerListable(sp));
   const speakerCount = speakers.length;
   const history = (historyRes.data ?? []) as Pick<Booking, "status" | "quoted_fee_zar">[];
 
