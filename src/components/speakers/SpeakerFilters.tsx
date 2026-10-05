@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
+import { EXPERTISE_OPTIONS } from "@/lib/constants/speakers";
 
 export interface FilterState {
   search: string;
@@ -13,11 +14,22 @@ export interface FilterState {
   sort: "fee_asc" | "fee_desc" | "rating_desc" | "events_desc";
 }
 
-const ALL_EXPERTISE = [
-  "Leadership", "AI", "Digital Transformation", "Sustainability", "ESG",
-  "Innovation", "Future of Work", "Neuroscience", "High Performance",
-  "Strategy", "Entrepreneurship", "Change Management",
+const MAX_FEE_SENTINEL = 200000;
+
+const AVAILABILITY_OPTIONS: { label: string; value: boolean | null }[] = [
+  { label: "All", value: null },
+  { label: "Available Now", value: true },
+  { label: "Unavailable", value: false },
 ];
+
+const FORMAT_OPTIONS: { label: string; value: string }[] = [
+  { label: "Any Format", value: "" },
+  { label: "In-Person", value: "in-person" },
+  { label: "Virtual", value: "virtual" },
+  { label: "Hybrid", value: "hybrid" },
+];
+
+const LEGEND_CLASS = "text-xs font-semibold text-primary uppercase tracking-wide mb-2 font-space-mono";
 
 interface SpeakerFiltersProps {
   filters: FilterState;
@@ -26,6 +38,8 @@ interface SpeakerFiltersProps {
 
 export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const id = useId();
+  const advancedId = `${id}-advanced`;
 
   function update(patch: Partial<FilterState>) {
     onChange({ ...filters, ...patch });
@@ -44,24 +58,32 @@ export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
     filters.available !== null ||
     filters.format ||
     filters.minFee > 0 ||
-    filters.maxFee < 200000;
+    filters.maxFee < MAX_FEE_SENTINEL;
 
   return (
     <div className="space-y-3">
       {/* Search + controls row */}
       <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
         <div className="flex-1 relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <label htmlFor={`${id}-search`} className="sr-only">
+            Search speakers
+          </label>
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
           <input
-            type="text"
+            id={`${id}-search`}
+            type="search"
             placeholder="Search speakers by name or topic..."
             value={filters.search}
             onChange={(e) => update({ search: e.target.value })}
-            className="w-full pl-9 pr-3 py-2.5 text-sm border border-secondary rounded-[4px] bg-white text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+            className="w-full pl-9 pr-3 py-2.5 text-sm border-[1.5px] border-secondary rounded-[4px] bg-white text-primary placeholder:text-muted caret-accent focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
           />
         </div>
 
+        <label htmlFor={`${id}-sort`} className="sr-only">
+          Sort speakers
+        </label>
         <select
+          id={`${id}-sort`}
           value={filters.sort}
           onChange={(e) => update({ sort: e.target.value as FilterState["sort"] })}
           className="px-3 py-2.5 text-sm border border-secondary rounded-[4px] bg-white text-primary focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent cursor-pointer"
@@ -73,7 +95,10 @@ export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
         </select>
 
         <button
+          type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
+          aria-expanded={showAdvanced}
+          aria-controls={advancedId}
           className={[
             "flex items-center gap-2 px-3 py-2.5 text-sm border rounded-[4px] transition-colors",
             showAdvanced
@@ -81,10 +106,13 @@ export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
               : "border-line bg-white text-primary hover:border-secondary",
           ].join(" ")}
         >
-          <SlidersHorizontal size={16} />
+          <SlidersHorizontal size={16} aria-hidden="true" />
           Filters
           {hasActiveFilters && (
-            <span className="w-4 h-4 rounded-full bg-accent text-white text-[9px] font-bold flex items-center justify-center">
+            <span
+              className="w-4 h-4 rounded-full bg-secondary text-white text-[9px] font-bold flex items-center justify-center"
+              aria-label="(active)"
+            >
               ✓
             </span>
           )}
@@ -92,6 +120,7 @@ export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
 
         {hasActiveFilters && (
           <button
+            type="button"
             onClick={() =>
               onChange({
                 search: "",
@@ -99,13 +128,13 @@ export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
                 available: null,
                 format: "",
                 minFee: 0,
-                maxFee: 200000,
+                maxFee: MAX_FEE_SENTINEL,
                 sort: "rating_desc",
               })
             }
             className="flex items-center gap-1 px-3 py-2.5 text-sm border border-line rounded-[4px] text-muted hover:text-danger hover:border-danger transition-colors"
           >
-            <X size={14} />
+            <X size={14} aria-hidden="true" />
             Clear
           </button>
         )}
@@ -113,105 +142,110 @@ export function SpeakerFilters({ filters, onChange }: SpeakerFiltersProps) {
 
       {/* Advanced filters */}
       {showAdvanced && (
-        <div className="bg-white border border-line rounded-[4px] p-4 space-y-4 animate-[slide-up_0.2s_ease-out]">
+        <div
+          id={advancedId}
+          className="bg-white border border-line rounded-[4px] p-4 space-y-4 animate-[slide-up_0.2s_ease-out]"
+        >
           {/* Expertise chips */}
-          <div>
-            <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2 font-space-mono">
-              Expertise
-            </p>
+          <fieldset>
+            <legend className={LEGEND_CLASS}>Expertise</legend>
             <div className="flex flex-wrap gap-1.5">
-              {ALL_EXPERTISE.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => toggleExpertise(tag)}
-                  className={[
-                    "px-2.5 py-1 text-xs rounded-full border transition-colors",
-                    filters.expertise.includes(tag)
-                      ? "bg-accent text-white border-accent font-semibold"
-                      : "border-line text-primary hover:border-secondary",
-                  ].join(" ")}
-                >
-                  {tag}
-                </button>
-              ))}
+              {EXPERTISE_OPTIONS.map((tag) => {
+                const selected = filters.expertise.includes(tag);
+                return (
+                  <button
+                    key={tag}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleExpertise(tag)}
+                    className={[
+                      "px-2.5 py-1 text-xs rounded-full border transition-colors",
+                      selected
+                        ? "bg-accent text-white border-accent font-semibold"
+                        : "border-line text-primary hover:border-secondary",
+                    ].join(" ")}
+                  >
+                    {tag}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </fieldset>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Availability */}
-            <div>
-              <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2 font-space-mono">
-                Availability
-              </p>
+            <fieldset>
+              <legend className={LEGEND_CLASS}>Availability</legend>
               <div className="space-y-1.5">
-                {[
-                  { label: "All", value: null },
-                  { label: "Available Now", value: true },
-                  { label: "Unavailable", value: false },
-                ].map((opt) => (
+                {AVAILABILITY_OPTIONS.map((opt) => (
                   <label key={String(opt.value)} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
+                      name={`${id}-availability`}
                       checked={filters.available === opt.value}
                       onChange={() => update({ available: opt.value })}
-                      className="accent-[#FF5700]"
+                      className="accent-accent"
                     />
                     <span className="text-sm text-primary">{opt.label}</span>
                   </label>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
             {/* Format */}
-            <div>
-              <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2 font-space-mono">
-                Format
-              </p>
+            <fieldset>
+              <legend className={LEGEND_CLASS}>Format</legend>
               <div className="space-y-1.5">
-                {[
-                  { label: "Any Format", value: "" },
-                  { label: "In-Person", value: "in-person" },
-                  { label: "Virtual", value: "virtual" },
-                  { label: "Hybrid", value: "hybrid" },
-                ].map((opt) => (
+                {FORMAT_OPTIONS.map((opt) => (
                   <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
+                      name={`${id}-format`}
                       checked={filters.format === opt.value}
                       onChange={() => update({ format: opt.value })}
-                      className="accent-[#FF5700]"
+                      className="accent-accent"
                     />
                     <span className="text-sm text-primary">{opt.label}</span>
                   </label>
                 ))}
               </div>
-            </div>
+            </fieldset>
 
             {/* Fee range */}
-            <div>
-              <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2 font-space-mono">
-                Fee Range (ZAR)
-              </p>
-              <div className="space-y-2">
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="number"
-                    placeholder="Min"
-                    value={filters.minFee || ""}
-                    onChange={(e) => update({ minFee: Number(e.target.value) || 0 })}
-                    className="w-full px-2 py-1.5 text-xs border border-line rounded-[4px] text-primary focus:outline-none focus:border-secondary"
-                  />
-                  <span className="text-muted text-xs">–</span>
-                  <input
-                    type="number"
-                    placeholder="Max"
-                    value={filters.maxFee === 200000 ? "" : filters.maxFee}
-                    onChange={(e) => update({ maxFee: Number(e.target.value) || 200000 })}
-                    className="w-full px-2 py-1.5 text-xs border border-line rounded-[4px] text-primary focus:outline-none focus:border-secondary"
-                  />
-                </div>
+            <fieldset>
+              <legend className={LEGEND_CLASS}>Fee Range (ZAR)</legend>
+              <div className="flex gap-2 items-center">
+                <label htmlFor={`${id}-min-fee`} className="sr-only">
+                  Minimum fee (ZAR)
+                </label>
+                <input
+                  id={`${id}-min-fee`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  placeholder="Min"
+                  value={filters.minFee || ""}
+                  onChange={(e) => update({ minFee: Number(e.target.value) || 0 })}
+                  className="w-full px-2 py-1.5 text-xs border border-line rounded-[4px] text-primary focus:outline-none focus:border-secondary"
+                />
+                <span className="text-muted text-xs" aria-hidden="true">
+                  –
+                </span>
+                <label htmlFor={`${id}-max-fee`} className="sr-only">
+                  Maximum fee (ZAR)
+                </label>
+                <input
+                  id={`${id}-max-fee`}
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  placeholder="Max"
+                  value={filters.maxFee === MAX_FEE_SENTINEL ? "" : filters.maxFee}
+                  onChange={(e) => update({ maxFee: Number(e.target.value) || MAX_FEE_SENTINEL })}
+                  className="w-full px-2 py-1.5 text-xs border border-line rounded-[4px] text-primary focus:outline-none focus:border-secondary"
+                />
               </div>
-            </div>
+            </fieldset>
           </div>
         </div>
       )}
