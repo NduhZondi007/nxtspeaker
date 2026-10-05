@@ -2,13 +2,26 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Search, CalendarCheck, TrendingUp, DollarSign } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getMyProfile } from "@/lib/auth/session";
+import { createLogger } from "@/lib/logger";
 import { TopBar } from "@/components/layout/TopBar";
 import { BookingStatusBadge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { buttonClasses } from "@/components/ui/Button";
 import { StatCard } from "@/components/ui/StatCard";
 import { formatZAR } from "@/lib/utils/currency";
+import { BOOKING_LIST_COLUMNS, formatDateSAST } from "@/lib/utils/booking";
 import { isSpeakerListable } from "@/lib/utils/profile-completeness";
-import type { Booking, SpeakerProfile } from "@/lib/types/database";
+import type { Booking, BookingStatus, SpeakerProfile } from "@/lib/types/database";
+
+const log = createLogger("client-dashboard");
+
+/** Everything still in flight — PAID included: the event has not happened yet. */
+const ACTIVE_STATUSES: BookingStatus[] = ["PENDING", "CONFIRMED", "PAID", "DEPOSIT_PAID"];
+
+/** What the listability rule reads, plus what the widget shows. No email/phone. */
+const SPEAKER_WIDGET_COLUMNS =
+  "id, title, speaking_fee_zar, status, bio, expertise, languages, location, photo_urls, avg_rating, " +
+  "profiles(id, full_name, avatar_url)";
 
 /**
  * The greeting used to be hardcoded to "Good morning", so it was wrong for
@@ -30,46 +43,60 @@ function greeting(): string {
 }
 
 export default async function ClientDashboardPage() {
+  const profile = await getMyProfile();
+  if (!profile) redirect("/login");
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   // The recent-bookings list is capped at 5 for display, but the headline
   // stats must cover the client's whole history — computing them from the
   // same truncated list under-reported "Events Completed" and "Total Spent"
   // for anyone with more than five bookings.
-  const [{ data: profile }, { data: bks }, { data: allBookings }, { data: sps }] =
-    await Promise.all([
-      supabase.from("profiles").select("id, full_name").eq("id", user.id).single(),
-      supabase.from("bookings").select("*, speaker_profiles(*, profiles(*))").eq("client_id", user.id).order("created_at", { ascending: false }).limit(5),
-      supabase.from("bookings").select("status, quoted_fee_zar").eq("client_id", user.id),
-      // Not `.limit(4)`, and no separate head-count: incomplete profiles are
-      // filtered out below, so limiting in SQL would under-fill the widget and
-      // a `head: true` count would still include the hidden speakers.
-      supabase.from("speaker_profiles").select("*, profiles(*)").eq("status", "ACTIVE").eq("available", true).order("avg_rating", { ascending: false }),
-    ]);
+  const [recentRes, historyRes, speakersRes] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(`${BOOKING_LIST_COLUMNS}, speaker_profiles(id, profiles(id, full_name, avatar_url))`)
+      .eq("client_id", profile.id)
+      .order("created_at", { ascending: false })
+      .limit(5),
+    supabase.from("bookings").select("status, quoted_fee_zar").eq("client_id", profile.id),
+    // Not `.limit(4)`, and no separate head-count: incomplete profiles are
+    // filtered out below, so limiting in SQL would under-fill the widget and
+    // a `head: true` count would still include the hidden speakers.
+    supabase
+      .from("speaker_profiles")
+      .select(SPEAKER_WIDGET_COLUMNS)
+      .eq("status", "ACTIVE")
+      .eq("available", true)
+      .order("avg_rating", { ascending: false }),
+  ]);
 
-  const bookings = (bks ?? []) as Booking[];
+  if (recentRes.error) log.error("Could not load recent bookings", { cause: recentRes.error });
+  if (historyRes.error) log.error("Could not load booking history", { cause: historyRes.error });
+  if (speakersRes.error) log.error("Could not load speakers", { cause: speakersRes.error });
+
+  const bookings = (recentRes.data ?? []) as unknown as Booking[];
   // Same listability rule as /client/discover — see getSpeakers.
-  const speakers = ((sps ?? []) as SpeakerProfile[]).filter((sp) => isSpeakerListable(sp));
+  const speakers = ((speakersRes.data ?? []) as unknown as SpeakerProfile[]).filter((sp) => isSpeakerListable(sp));
   const speakerCount = speakers.length;
-  const history = (allBookings ?? []) as Pick<Booking, "status" | "quoted_fee_zar">[];
+  const history = (historyRes.data ?? []) as Pick<Booking, "status" | "quoted_fee_zar">[];
 
-  const activeBookings    = history.filter((b) => ["PENDING", "CONFIRMED", "DEPOSIT_PAID"].includes(b.status)).length;
+  const activeBookings    = history.filter((b) => ACTIVE_STATUSES.includes(b.status)).length;
   const completedBookings = history.filter((b) => b.status === "COMPLETED").length;
   const totalSpent        = history.filter((b) => b.status === "COMPLETED").reduce((sum: number, b) => sum + Number(b.quoted_fee_zar), 0);
 
   const stats = [
-    { label: "Active Bookings",    value: String(activeBookings),    icon: CalendarCheck, color: "#FF5700" },
-    { label: "Events Completed",   value: String(completedBookings), icon: TrendingUp,    color: "#629DAB" },
-    { label: "Total Spent",        value: formatZAR(totalSpent),     icon: DollarSign,    color: "#031E57", money: true },
-    { label: "Speakers Available", value: String(speakerCount), icon: Search,        color: "#629DAB" },
+    // Not orange: a stat tile is not a thing you click. See docs/DESIGN.md.
+    { label: "Active Bookings",    value: String(activeBookings),    icon: CalendarCheck, color: "var(--color-secondary)" },
+    { label: "Events Completed",   value: String(completedBookings), icon: TrendingUp,    color: "var(--color-secondary)" },
+    { label: "Total Spent",        value: formatZAR(totalSpent),     icon: DollarSign,    color: "var(--color-primary)", money: true },
+    { label: "Speakers Available", value: String(speakerCount),      icon: Search,        color: "var(--color-secondary)" },
   ];
 
   return (
     <div>
       <TopBar
-        title={`${greeting()}, ${profile?.full_name?.split(" ")[0] ?? "there"}`}
+        title={`${greeting()}, ${profile.full_name?.split(" ")[0] ?? "there"}`}
         subtitle="Here's what's happening with your bookings"
       />
 
@@ -81,11 +108,11 @@ export default async function ClientDashboardPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-white border border-line rounded-[12px] overflow-hidden">
+          <div className="lg:col-span-2 bg-white border border-line rounded-[8px] overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-line">
               <h2 className="font-archivo font-bold text-primary">Recent Bookings</h2>
-              <Link href="/client/bookings">
-                <Button variant="ghost" size="sm">View all</Button>
+              <Link href="/client/bookings" className={buttonClasses({ variant: "ghost", size: "sm" })}>
+                View all
               </Link>
             </div>
             {bookings.length === 0 ? (
@@ -93,25 +120,25 @@ export default async function ClientDashboardPage() {
                 <CalendarCheck size={32} className="text-line mx-auto mb-3" />
                 <p className="font-archivo text-muted">No bookings yet</p>
                 <p className="text-sm text-muted mt-1">Find a speaker to get started</p>
-                <Link href="/client/discover">
-                  <Button variant="gold" size="sm" className="mt-4">Find Speakers</Button>
+                <Link href="/client/discover" className={buttonClasses({ variant: "gold", size: "sm", className: "mt-4" })}>
+                  Find Speakers
                 </Link>
               </div>
             ) : (
               <div className="divide-y divide-line">
                 {bookings.map((booking: Booking) => (
-                  <Link key={booking.id} href={`/client/bookings/${booking.id}`}>
+                  <Link key={booking.id} href={`/client/bookings/${booking.id}`} className="block">
                     <div className="flex items-center gap-4 px-5 py-3.5 hover:bg-soft transition-colors">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-ink truncate">{booking.event_name}</p>
                         <p className="text-xs text-muted mt-0.5">
                           {booking.speaker_profiles?.profiles?.full_name ?? "Speaker"} ·{" "}
-                          {new Date(booking.event_date).toLocaleDateString("en-ZA")}
+                          {formatDateSAST(booking.event_date)}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
                         <BookingStatusBadge status={booking.status} />
-                        <p className="text-xs font-space-mono font-bold text-secondary mt-1">{formatZAR(booking.quoted_fee_zar)}</p>
+                        <p className="text-xs font-space-mono font-bold text-ink mt-1">{formatZAR(booking.quoted_fee_zar)}</p>
                       </div>
                     </div>
                   </Link>
@@ -121,32 +148,34 @@ export default async function ClientDashboardPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="bg-white border border-line rounded-[12px] p-5">
+            <div className="bg-white border border-line rounded-[8px] p-5">
               <h2 className="font-archivo font-bold text-primary mb-4">Quick Actions</h2>
               <div className="space-y-2">
-                <Link href="/client/discover" className="block">
-                  <Button variant="gold" className="w-full justify-start gap-3">
-                    <Search size={16} /> Find Speakers
-                  </Button>
+                <Link
+                  href="/client/discover"
+                  className={buttonClasses({ variant: "gold", className: "w-full justify-start gap-3" })}
+                >
+                  <Search size={16} aria-hidden="true" /> Find Speakers
                 </Link>
-                <Link href="/client/bookings" className="block">
-                  <Button variant="outline" className="w-full justify-start gap-3">
-                    <CalendarCheck size={16} /> View Bookings
-                  </Button>
+                <Link
+                  href="/client/bookings"
+                  className={buttonClasses({ variant: "outline", className: "w-full justify-start gap-3" })}
+                >
+                  <CalendarCheck size={16} aria-hidden="true" /> View Bookings
                 </Link>
               </div>
             </div>
 
             {speakers.length > 0 && (
-              <div className="bg-white border border-line rounded-[12px] overflow-hidden">
+              <div className="bg-white border border-line rounded-[8px] overflow-hidden">
                 <div className="px-5 py-4 border-b border-line">
                   <h2 className="font-archivo font-bold text-primary">Top Speakers</h2>
                 </div>
                 <div className="divide-y divide-line">
                   {speakers.slice(0, 3).map((sp: SpeakerProfile) => (
-                    <Link key={sp.id} href="/client/discover">
+                    <Link key={sp.id} href="/client/discover" className="block">
                       <div className="flex items-center gap-3 px-4 py-3 hover:bg-soft transition-colors">
-                        <div className="w-9 h-9 rounded-[6px] bg-secondary/20 flex items-center justify-center text-sm font-bold text-secondary shrink-0">
+                        <div className="w-9 h-9 rounded-[4px] bg-secondary/20 flex items-center justify-center text-sm font-bold text-secondary shrink-0">
                           {sp.profiles?.full_name?.charAt(0) ?? "S"}
                         </div>
                         <div className="flex-1 min-w-0">

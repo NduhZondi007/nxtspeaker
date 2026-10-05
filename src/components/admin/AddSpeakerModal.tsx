@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { X, Search, Check, Loader2, UserPlus } from "lucide-react";
 import { adminSearchUsers, adminCreateSpeaker } from "@/app/actions/admin";
 import { Button } from "@/components/ui/Button";
@@ -25,7 +25,28 @@ const EXPERTISE_OPTIONS = [
 
 const LANGUAGE_OPTIONS = ["English", "Zulu", "Xhosa", "Sotho", "Afrikaans", "Tswana", "Venda", "Tsonga"];
 
+const INPUT_CLASS =
+  "w-full px-3 py-2 border border-line rounded-[8px] text-sm text-ink placeholder-muted focus:outline-none focus:border-secondary transition-colors";
+const LABEL_CLASS = "block text-xs font-semibold text-muted uppercase tracking-wide mb-1";
+
+/**
+ * Not built on the shared <Modal>: that component (owned elsewhere) has no
+ * aria-labelledby and an unlabelled close button. This one carries its own
+ * dialog semantics, Escape handling and labelled close control.
+ */
 export function AddSpeakerModal({ onClose }: Props) {
+  const uid = useId();
+  const ids = {
+    title: `${uid}-heading`,
+    search: `${uid}-search`,
+    speakerTitle: `${uid}-title`,
+    bio: `${uid}-bio`,
+    fee: `${uid}-fee`,
+    location: `${uid}-location`,
+    level: `${uid}-level`,
+    expertise: `${uid}-expertise`,
+    languages: `${uid}-languages`,
+  };
   const [step, setStep] = useState<"search" | "profile">("search");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<UserResult[]>([]);
@@ -44,6 +65,14 @@ export function AddSpeakerModal({ onClose }: Props) {
   const [languages, setLanguages] = useState<string[]>(["English"]);
   const [virtual, setVirtual] = useState(false);
   const [hybrid, setHybrid] = useState(false);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -90,15 +119,25 @@ export function AddSpeakerModal({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-ink/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-[12px] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={ids.title}
+        className="bg-white rounded-[8px] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-line sticky top-0 bg-white rounded-t-[12px] z-10">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-line sticky top-0 bg-white rounded-t-[8px] z-10">
           <div className="flex items-center gap-2">
-            <UserPlus size={18} className="text-secondary" />
-            <h2 className="font-archivo font-bold text-primary">Add Speaker</h2>
+            <UserPlus size={18} className="text-secondary" aria-hidden="true" />
+            <h2 id={ids.title} className="font-archivo font-bold text-primary">Add Speaker</h2>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-[6px] hover:bg-soft transition-colors">
-            <X size={16} className="text-muted" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="p-1.5 rounded-[4px] hover:bg-soft transition-colors"
+          >
+            <X size={16} className="text-muted" aria-hidden="true" />
           </button>
         </div>
 
@@ -118,20 +157,22 @@ export function AddSpeakerModal({ onClose }: Props) {
         {step === "search" && (
           <div className="px-6 py-5 space-y-4">
             <p className="text-sm text-muted">Search for an existing user by name or email to create their speaker profile.</p>
-            <form onSubmit={handleSearch} className="flex gap-2">
+            <form onSubmit={handleSearch} className="flex gap-2" role="search">
+              <label htmlFor={ids.search} className="sr-only">Search users</label>
               <input
-                type="text"
+                id={ids.search}
+                type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search by name or email…"
                 className="flex-1 px-3 py-2 border border-line rounded-[8px] text-sm text-ink placeholder-muted focus:outline-none focus:border-secondary transition-colors"
               />
               <Button type="submit" variant="gold" size="sm" disabled={searching} className="gap-1.5">
-                {searching ? <Loader2 size={13} className="animate-spin" /> : <Search size={13} />}
+                {searching ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Search size={13} aria-hidden="true" />}
                 Search
               </Button>
             </form>
-            {searchError && <p className="text-xs text-danger">{searchError}</p>}
+            {searchError && <p role="alert" className="text-xs text-danger">{searchError}</p>}
             {results.length > 0 && (
               <div className="border border-line rounded-[8px] overflow-hidden divide-y divide-line">
                 {results.map((u) => (
@@ -172,45 +213,44 @@ export function AddSpeakerModal({ onClose }: Props) {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1">Title / Tagline *</label>
-              <input required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Leadership Coach & Keynote Speaker"
-                className="w-full px-3 py-2 border border-line rounded-[8px] text-sm text-ink placeholder-muted focus:outline-none focus:border-secondary transition-colors" />
+              <label htmlFor={ids.speakerTitle} className={LABEL_CLASS}>Title / Tagline *</label>
+              <input id={ids.speakerTitle} required maxLength={200} value={title} onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. Leadership Coach & Keynote Speaker" className={INPUT_CLASS} />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1">Bio</label>
-              <textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Brief professional bio…"
-                className="w-full px-3 py-2 border border-line rounded-[8px] text-sm text-ink placeholder-muted focus:outline-none focus:border-secondary transition-colors resize-none" />
+              <label htmlFor={ids.bio} className={LABEL_CLASS}>Bio</label>
+              <textarea id={ids.bio} rows={3} maxLength={4000} value={bio} onChange={(e) => setBio(e.target.value)}
+                placeholder="Brief professional bio…" className={`${INPUT_CLASS} resize-none`} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1">Speaking Fee (ZAR) *</label>
-                <input required type="number" min="0" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="25000"
-                  className="w-full px-3 py-2 border border-line rounded-[8px] text-sm text-ink placeholder-muted focus:outline-none focus:border-secondary transition-colors" />
+                <label htmlFor={ids.fee} className={LABEL_CLASS}>Speaking Fee (ZAR) *</label>
+                <input id={ids.fee} required type="number" min="0" value={fee} onChange={(e) => setFee(e.target.value)}
+                  placeholder="25000" className={INPUT_CLASS} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1">Location</label>
-                <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Johannesburg"
-                  className="w-full px-3 py-2 border border-line rounded-[8px] text-sm text-ink placeholder-muted focus:outline-none focus:border-secondary transition-colors" />
+                <label htmlFor={ids.location} className={LABEL_CLASS}>Location</label>
+                <input id={ids.location} maxLength={200} value={location} onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g. Johannesburg" className={INPUT_CLASS} />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-1">Level (1–5)</label>
-              <select value={level} onChange={(e) => setLevel(e.target.value)}
-                className="w-full px-3 py-2 border border-line rounded-[8px] text-sm text-ink focus:outline-none focus:border-secondary transition-colors">
+              <label htmlFor={ids.level} className={LABEL_CLASS}>Level (1–5)</label>
+              <select id={ids.level} value={level} onChange={(e) => setLevel(e.target.value)} className={INPUT_CLASS}>
                 {[["1", "Emerging Talent"], ["2", "Rising Professional"], ["3", "Established Expert"], ["4", "Industry Leader"], ["5", "Celebrity Speaker"]].map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-2">Expertise</label>
+            <div role="group" aria-labelledby={ids.expertise}>
+              <p id={ids.expertise} className={`${LABEL_CLASS} mb-2`}>Expertise</p>
               <div className="flex flex-wrap gap-1.5">
                 {EXPERTISE_OPTIONS.map((opt) => (
-                  <button key={opt} type="button" onClick={() => toggleChip(opt, expertise, setExpertise)}
+                  <button key={opt} type="button" aria-pressed={expertise.includes(opt)} onClick={() => toggleChip(opt, expertise, setExpertise)}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${expertise.includes(opt) ? "bg-secondary text-white" : "bg-soft text-ink hover:bg-secondary/20"}`}>
                     {opt}
                   </button>
@@ -218,11 +258,11 @@ export function AddSpeakerModal({ onClose }: Props) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-muted uppercase tracking-wide mb-2">Languages</label>
+            <div role="group" aria-labelledby={ids.languages}>
+              <p id={ids.languages} className={`${LABEL_CLASS} mb-2`}>Languages</p>
               <div className="flex flex-wrap gap-1.5">
                 {LANGUAGE_OPTIONS.map((opt) => (
-                  <button key={opt} type="button" onClick={() => toggleChip(opt, languages, setLanguages)}
+                  <button key={opt} type="button" aria-pressed={languages.includes(opt)} onClick={() => toggleChip(opt, languages, setLanguages)}
                     className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${languages.includes(opt) ? "bg-secondary text-white" : "bg-soft text-ink hover:bg-secondary/20"}`}>
                     {opt}
                   </button>
@@ -232,21 +272,21 @@ export function AddSpeakerModal({ onClose }: Props) {
 
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={virtual} onChange={(e) => setVirtual(e.target.checked)} className="accent-[#FF5700] rounded" />
+                <input type="checkbox" checked={virtual} onChange={(e) => setVirtual(e.target.checked)} className="accent-accent rounded" />
                 <span className="text-sm text-ink">Virtual</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={hybrid} onChange={(e) => setHybrid(e.target.checked)} className="accent-[#FF5700] rounded" />
+                <input type="checkbox" checked={hybrid} onChange={(e) => setHybrid(e.target.checked)} className="accent-accent rounded" />
                 <span className="text-sm text-ink">Hybrid</span>
               </label>
             </div>
 
-            {submitError && <p className="text-xs text-danger">{submitError}</p>}
+            {submitError && <p role="alert" className="text-xs text-danger">{submitError}</p>}
 
             <div className="flex gap-3 pt-2">
               <Button type="button" variant="outline" onClick={() => setStep("search")} className="flex-1">Back</Button>
               <Button type="submit" variant="gold" disabled={submitting} className="flex-1 gap-1.5">
-                {submitting ? <Loader2 size={13} className="animate-spin" /> : <UserPlus size={13} />}
+                {submitting ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <UserPlus size={13} aria-hidden="true" />}
                 Create Speaker
               </Button>
             </div>

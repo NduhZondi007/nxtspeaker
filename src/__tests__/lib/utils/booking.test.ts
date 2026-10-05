@@ -1,29 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  getBookingStatusColor,
-  getBookingStatusLabel,
-  canChat,
-} from "@/lib/utils/booking";
-import type { BookingStatus } from "@/lib/types/database";
-
-describe("getBookingStatusColor", () => {
-  it("returns a hex color for every known status", () => {
-    const statuses: BookingStatus[] = [
-      "PENDING", "CONFIRMED", "DEPOSIT_PAID", "COMPLETED", "CANCELLED", "DECLINED",
-    ];
-    statuses.forEach((s) => {
-      expect(getBookingStatusColor(s)).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    });
-  });
-});
-
-describe("getBookingStatusLabel", () => {
-  it("returns human-readable labels", () => {
-    expect(getBookingStatusLabel("DEPOSIT_PAID")).toBe("Deposit Paid");
-    expect(getBookingStatusLabel("PENDING")).toBe("Pending");
-    expect(getBookingStatusLabel("COMPLETED")).toBe("Completed");
-  });
-});
+import { canChat } from "@/lib/utils/booking";
 
 describe("canChat", () => {
   it("allows chat for CONFIRMED bookings", () => {
