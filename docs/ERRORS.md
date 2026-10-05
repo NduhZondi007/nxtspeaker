@@ -3,6 +3,32 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-10-05 · bug · Apple touch icon was never served
+
+**Type:** bug
+**Affected:** `src/app/layout.tsx`, `src/app/apple-touch-icon.png`
+**Severity:** low
+
+**What happened:**
+While swapping in the 2026 badge, the root metadata was found to declare
+`icons.apple: "/apple-icon.png"`, a path with no file behind it. iOS "Add to Home
+Screen" got a 404 and fell back to a page screenshot.
+
+**Root cause:**
+The image lived at `src/app/apple-touch-icon.png`. Next.js only treats `icon.*`,
+`apple-icon.*` and `favicon.ico` in `app/` as metadata files, so it was neither
+routed nor linked, and the hand-written metadata pointed at a name that did not exist.
+
+**Fix:**
+Renamed to `src/app/apple-icon.png` and removed the explicit `icons` block so the
+file conventions emit the `<link>` tags (with cache-busting hashes) themselves.
+
+**Prevention:**
+DESIGN.md's logo section now names the convention files. Check `next build`'s route
+list: `/icon.png` and `/apple-icon.png` must both appear.
+
+---
+
 ## 2026-09-18 · bug · Admin "Platform Revenue" summed only the eight most recent bookings
 
 **Type:** bug
