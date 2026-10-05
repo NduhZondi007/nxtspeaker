@@ -98,6 +98,23 @@ Versions follow [Semantic Versioning](https://semver.org/).
   webhook carries no cookies, so the refresh could never do anything for it.
 
 ### Fixed
+- **Security — database write paths hardened** (`20261005120000_security-hardening.sql`).
+  Found by the 2026-10-05 audit; each is now covered by `supabase/tests/10_security.test.sql`.
+  - A client could insert a booking already at `PAID`/`COMPLETED` at any fee straight
+    through PostgREST. Inserts now take status `PENDING` and the speaker's real fee from
+    the database, and only ACTIVE speakers are bookable.
+  - Any user could create an ACTIVE speaker profile with a forged rating, and speakers
+    could delete their own profile. Speaker rows are now created by the platform only.
+  - Users could rewrite their profile email and point avatars/portfolio photos at any
+    URL; speakers could mark their own bank details verified.
+  - Clients could move the date or venue of an accepted or paid booking, and either
+    party could write admin-only columns. Booking updates are now an allow-list.
+  - A payout could be marked paid before the event was delivered or while on hold.
+  - A late success event could resurrect a refunded payment, and money arriving on a
+    cancelled booking created a payout nothing would close. Both now park the payment
+    as `NEEDS_REVIEW`.
+- **Database tests in CI.** `npm run test:db` replays every migration on plain Postgres
+  and runs the security tests; `.github/workflows/db-tests.yml` runs it on PRs.
 - **Booking chat felt slow and laggy.** A sent message waited on the server action
   *and* the Supabase Realtime round trip before appearing, and the text box was
   disabled (losing focus) the whole time. The inserted message is now shown as soon as

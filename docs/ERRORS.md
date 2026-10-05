@@ -3,6 +3,41 @@
 All non-trivial errors, bugs, and incidents are documented here.
 Append entries in reverse-chronological order (newest first).
 
+## 2026-10-05 · security · INSERT paths on bookings and speaker_profiles were unguarded
+
+**Type:** security
+**Affected:** `bookings`, `speaker_profiles`, `profiles`, `speaker_payout_details`, `payouts`, `record_successful_payment()`
+**Severity:** critical
+
+**What happened:**
+A read-only audit replayed every migration and computed the final policy set. Any
+registered user, calling PostgREST directly with the anon key and their own session,
+could insert a booking at `PAID` for R1, create an ACTIVE speaker profile with a 5-star
+rating, edit their profile email, self-verify bank details, and move the date of a paid
+booking. Separately, a payout could be marked paid while PENDING, and a late webhook
+could turn a REFUNDED payment back into SUCCEEDED.
+
+**Root cause:**
+The 2026-09-07 hardening added BEFORE UPDATE triggers only. Server-side rules for
+inserts (fee, status, speaker eligibility) lived solely in `createBooking`, which
+PostgREST bypasses. Policies were "tested in Supabase Studio" by hand, which covers
+the cases someone thinks of — no test enumerated INSERT and DELETE.
+
+**Fix:**
+`20261005120000_security-hardening.sql`: BEFORE INSERT trigger on bookings that
+coerces status/fee from the DB; admin-only speaker_profiles writes; email and storage
+URL pinning; verification reset on payout details; allow-list booking updates;
+`guard_payout_paid`; `record_successful_payment` only advances open payments on
+CONFIRMED bookings. `supabase/audits/2026-10-05-forged-rows.sql` finds rows written
+through these holes before the fix.
+
+**Prevention:**
+`supabase/tests/` + `scripts/test-db.sh` run every migration on plain Postgres and
+assert each attack is refused and each legitimate path still works, in CI on every PR
+touching `supabase/`. CLAUDE.md now requires a test per policy/guard.
+
+---
+
 ## 2026-10-05 · performance · Booking chat waited on two round trips per message
 
 **Type:** performance
