@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Check, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { HospitalityRiderView } from "@/components/bookings/HospitalityRiderView";
-import { validateBookingDates } from "@/lib/utils/booking";
+import { addDaysISO, todayInSAST, validateBookingDates } from "@/lib/utils/booking";
 import { formatZAR } from "@/lib/utils/currency";
 import type { SpeakerProfile, HospitalityRider, Profile, EventFormat } from "@/lib/types/database";
 
@@ -65,9 +65,13 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
   const [errors, setErrors] = useState<Partial<Record<keyof BookingFormData, string>>>({});
   const [submitting, setSubmitting] = useState(false);
 
+  const formatId = useId();
+
   const speakerName = speaker.profiles?.full_name ?? "Speaker";
-  // Earliest selectable event date: tomorrow, matching validateBookingDates.
-  const minEventDate = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  // Earliest selectable event date: tomorrow in SAST, matching
+  // validateBookingDates. The UTC date lagged by a day before 02:00 SAST.
+  const minEventDate = addDaysISO(todayInSAST(), 1);
+  const errorCount = Object.keys(errors).length;
 
   function update(patch: Partial<BookingFormData>) {
     setData((prev) => ({ ...prev, ...patch }));
@@ -150,20 +154,20 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
       <div className="flex items-center gap-0 mb-8">
         {STEPS.map((s, i) => (
           <div key={s.label} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center">
+            <div className="flex flex-col items-center" aria-current={i === step ? "step" : undefined}>
               <div
                 className={[
                   "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300",
                   i < step
                     ? "bg-primary text-white"
                     : i === step
-                    ? "bg-accent text-white border-2 border-accent/50"
+                    ? "bg-secondary text-white border-2 border-secondary/50"
                     : "bg-soft text-muted",
                 ].join(" ")}
               >
-                {i < step ? <Check size={14} /> : i + 1}
+                {i < step ? <Check size={14} aria-hidden="true" /> : i + 1}
               </div>
-              <p className={`text-[10px] mt-1 font-medium ${i === step ? "text-accent" : "text-muted"}`}>
+              <p className={`text-[10px] mt-1 font-medium ${i === step ? "text-secondary" : "text-muted"}`}>
                 {s.label}
               </p>
             </div>
@@ -221,10 +225,11 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-ink uppercase tracking-wide">
+              <label htmlFor={formatId} className="text-xs font-semibold text-ink uppercase tracking-wide">
                 Event Format *
               </label>
               <select
+                id={formatId}
                 value={data.event_format}
                 onChange={(e) => update({ event_format: e.target.value as EventFormat })}
                 className="px-3 py-2.5 text-sm border border-line rounded-[8px] bg-white text-ink focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
@@ -318,7 +323,7 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
             </div>
           )}
           {errors.hospitality_rider_agreed && (
-            <p className="text-xs text-danger">{errors.hospitality_rider_agreed}</p>
+            <p role="alert" className="text-xs text-danger">{errors.hospitality_rider_agreed}</p>
           )}
         </div>
       )}
@@ -356,6 +361,14 @@ export function BookingForm({ speaker, rider, clientProfile, onSubmit, onCancel 
             By submitting, you send a booking request to {speakerName}. The speaker will review and respond within 48 hours.
           </p>
         </div>
+      )}
+
+      {/* Field-level messages render inside each Input; this one line is what
+          a screen reader announces when Continue is refused. */}
+      {errorCount > 0 && step < 2 && (
+        <p role="alert" className="mt-4 text-xs text-danger">
+          Please fix {errorCount === 1 ? "the highlighted field" : `the ${errorCount} highlighted fields`} to continue.
+        </p>
       )}
 
       {/* Footer */}

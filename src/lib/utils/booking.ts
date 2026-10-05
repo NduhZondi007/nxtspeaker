@@ -178,3 +178,20 @@ export function validateBookingDates(
 
   return null;
 }
+
+/**
+ * Columns a booking detail page renders. Listed explicitly so new columns
+ * (e.g. internal notes) are not shipped to the browser by default.
+ */
+export const BOOKING_DETAIL_COLUMNS =
+  "id, booking_number, client_id, speaker_id, event_name, audience_demographics, exact_location, " +
+  "event_organiser, associated_company, event_date, event_end_date, duration_minutes, event_format, " +
+  "estimated_audience, quoted_fee_zar, status, hospitality_rider_agreed, hospitality_agreed_at, " +
+  "client_notes, cancelled_reason, created_at, updated_at";
+
+/** Columns a booking list row renders. */
+export const BOOKING_LIST_COLUMNS =
+  "id, booking_number, event_name, event_date, event_format, exact_location, duration_minutes, status, quoted_fee_zar, created_at";
+
+/** Public fields of another user's profile — never email or phone. */
+export const PUBLIC_PROFILE_COLUMNS = "id, full_name, avatar_url";
