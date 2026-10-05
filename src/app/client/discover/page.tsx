@@ -14,11 +14,14 @@ const log = createLogger("discover");
 // component as initial state, so first paint shows real data immediately.
 export default async function DiscoverPage() {
   const supabase = await createClient();
-  const { data: initialSpeakers, error } = await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS);
+  const { data: initialSpeakers, error, hasMore } = await getSpeakers(
+    supabase,
+    DEFAULT_SPEAKER_FILTERS
+  );
 
   if (error) {
     log.error("initial speaker_profiles fetch failed", { cause: error });
   }
 
-  return <DiscoverClient initialSpeakers={initialSpeakers} />;
+  return <DiscoverClient initialSpeakers={initialSpeakers} initialHasMore={hasMore} />;
 }

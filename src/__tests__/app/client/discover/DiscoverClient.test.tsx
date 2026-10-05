@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DiscoverClient } from "@/app/client/discover/DiscoverClient";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -8,7 +8,8 @@ import type { SpeakerProfile } from "@/lib/types/database";
 
 const mockPush = vi.fn();
 
-const { mockMaybeSingle, mockReviewsOrder, mockGetUser, authState } = vi.hoisted(() => ({
+const { mockMaybeSingle, mockReviewsOrder, mockGetUser, authState, mockGetSpeakers } = vi.hoisted(() => ({
+  mockGetSpeakers: vi.fn(),
   mockMaybeSingle: vi.fn(),
   mockReviewsOrder: vi.fn(),
   mockGetUser: vi.fn(),
@@ -21,6 +22,11 @@ const { mockMaybeSingle, mockReviewsOrder, mockGetUser, authState } = vi.hoisted
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
+}));
+
+vi.mock("@/lib/data/speakers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/data/speakers")>()),
+  getSpeakers: (...args: unknown[]) => mockGetSpeakers(...args),
 }));
 
 vi.mock("@/app/actions/bookings", () => ({
@@ -56,17 +62,27 @@ vi.mock("@/components/speakers/SpeakerCard", () => ({
 vi.mock("@/components/speakers/SpeakerModal", () => ({
   SpeakerModal: ({
     speaker,
+    reviews,
+    reviewsLoading,
     onBook,
+    onClose,
     bookingLoading,
   }: {
     speaker: SpeakerProfile | null;
+    reviews: { id: string }[];
+    reviewsLoading?: boolean;
     onBook: (s: SpeakerProfile) => void;
+    onClose: () => void;
     bookingLoading?: boolean;
   }) =>
     speaker ? (
-      <button onClick={() => onBook(speaker)} disabled={bookingLoading}>
-        {bookingLoading ? "booking-loading" : `book-${speaker.id}`}
-      </button>
+      <div>
+        <button onClick={() => onBook(speaker)} disabled={bookingLoading}>
+          {bookingLoading ? "booking-loading" : `book-${speaker.id}`}
+        </button>
+        <button onClick={onClose}>close-modal</button>
+        <p>{reviewsLoading ? "reviews-loading" : `reviews:${reviews.map((r) => r.id).join(",")}`}</p>
+      </div>
     ) : null,
 }));
 
@@ -271,5 +287,122 @@ describe("DiscoverClient / handleSubmitBooking", () => {
     expect(consoleErrorSpy).toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
+  });
+});
+
+function makeListable(id: string, name: string, title: string): SpeakerProfile {
+  return {
+    id,
+    title,
+    expertise: ["Leadership"],
+    profiles: { id: `u-${id}`, full_name: name, avatar_url: null },
+  } as unknown as SpeakerProfile;
+}
+
+describe("DiscoverClient / search", () => {
+  beforeEach(() => {
+    vi.useRealTimers();
+    mockGetSpeakers.mockReset().mockResolvedValue({ data: [], error: null, hasMore: false });
+    mockReviewsOrder.mockReset().mockResolvedValue({ data: [], error: null });
+  });
+
+  it("filters the loaded speakers in memory and never refetches on a search keystroke", async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <DiscoverClient
+          initialSpeakers={[
+            makeListable("a", "Thandi Mokoena", "AI Futurist"),
+            makeListable("b", "Sam Ndlovu", "Sales Coach"),
+          ]}
+        />
+      </ToastProvider>
+    );
+
+    await user.type(screen.getByLabelText(/search speakers/i), "futurist");
+    // Longer than the 300ms fetch debounce.
+    await act(() => new Promise((r) => setTimeout(r, 400)));
+
+    expect(screen.getByText("select-a")).toBeInTheDocument();
+    expect(screen.queryByText("select-b")).not.toBeInTheDocument();
+    expect(mockGetSpeakers).not.toHaveBeenCalled();
+  });
+});
+
+describe("DiscoverClient / load more", () => {
+  beforeEach(() => {
+    mockGetSpeakers.mockReset();
+  });
+
+  it("fetches the next page at the next offset and appends it", async () => {
+    mockGetSpeakers.mockResolvedValue({
+      data: [makeListable("c", "Lerato", "Coach")],
+      error: null,
+      hasMore: false,
+    });
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <DiscoverClient initialSpeakers={[makeListable("a", "Ann", "Futurist")]} initialHasMore />
+      </ToastProvider>
+    );
+
+    await user.click(screen.getByRole("button", { name: /load more/i }));
+
+    expect(await screen.findByText("select-c")).toBeInTheDocument();
+    expect(screen.getByText("select-a")).toBeInTheDocument();
+    expect(mockGetSpeakers).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ offset: 24 })
+    );
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+  });
+
+  it("hides load more when the server said there is no next page", () => {
+    render(
+      <ToastProvider>
+        <DiscoverClient initialSpeakers={[makeListable("a", "Ann", "Futurist")]} />
+      </ToastProvider>
+    );
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("DiscoverClient / reviews", () => {
+  beforeEach(() => {
+    mockReviewsOrder.mockReset();
+  });
+
+  it("shows a loading state instead of the previous speaker's reviews, and ignores a late response", async () => {
+    const pending: Record<string, (v: unknown) => void> = {};
+    let call = 0;
+    mockReviewsOrder.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          pending[call++ === 0 ? "a" : "b"] = resolve;
+        })
+    );
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <DiscoverClient
+          initialSpeakers={[makeListable("a", "Ann", "One"), makeListable("b", "Ben", "Two")]}
+        />
+      </ToastProvider>
+    );
+
+    await user.click(screen.getByText("select-a"));
+    expect(screen.getByText("reviews-loading")).toBeInTheDocument();
+    await user.click(screen.getByText("close-modal"));
+    await user.click(screen.getByText("select-b"));
+    expect(screen.getByText("reviews-loading")).toBeInTheDocument();
+
+    await act(async () => pending.b({ data: [{ id: "review-b" }], error: null }));
+    expect(screen.getByText("reviews:review-b")).toBeInTheDocument();
+
+    // Speaker A's slower response lands afterwards; it must not replace B's.
+    await act(async () => pending.a({ data: [{ id: "review-a" }], error: null }));
+    expect(screen.getByText("reviews:review-b")).toBeInTheDocument();
   });
 });

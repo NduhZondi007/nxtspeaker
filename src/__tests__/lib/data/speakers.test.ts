@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { getSpeakers, filterBySearch, DEFAULT_SPEAKER_FILTERS } from "@/lib/data/speakers";
+import {
+  getSpeakers,
+  getSpeakerReviews,
+  filterBySearch,
+  DEFAULT_SPEAKER_FILTERS,
+  SPEAKER_PAGE_SIZE,
+} from "@/lib/data/speakers";
 import type { SpeakerProfile } from "@/lib/types/database";
 import type { FilterState } from "@/components/speakers/SpeakerFilters";
 
@@ -47,7 +53,7 @@ function makeSpeaker(overrides: Partial<SpeakerProfile> = {}): SpeakerProfile {
 /** Minimal chainable mock of the Supabase query builder used by getSpeakers. */
 function makeQueryMock(result: { data: unknown; error: { message: string } | null }) {
   const query: Record<string, ReturnType<typeof vi.fn>> = {};
-  const chainable = ["select", "eq", "gte", "lte", "overlaps", "order"];
+  const chainable = ["select", "eq", "gt", "gte", "lte", "not", "overlaps", "order", "range"];
   for (const method of chainable) {
     query[method] = vi.fn(() => query);
   }
@@ -89,7 +95,7 @@ describe("getSpeakers", () => {
     expect(from).toHaveBeenCalledWith("speaker_profiles");
     expect(query.eq).toHaveBeenCalledWith("status", "ACTIVE");
     expect(query.order).toHaveBeenCalledWith("avg_rating", { ascending: false });
-    expect(result).toEqual({ data: [speaker], error: null });
+    expect(result).toEqual({ data: [speaker], error: null, hasMore: false });
   });
 
   it("applies fee, availability, format and expertise filters", async () => {
@@ -128,7 +134,7 @@ describe("getSpeakers", () => {
 
     const result = await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS);
 
-    expect(result).toEqual({ data: [], error: "permission denied" });
+    expect(result).toEqual({ data: [], error: "permission denied", hasMore: false });
   });
 });
 
@@ -185,5 +191,82 @@ describe("getSpeakers / profile-completeness gate", () => {
     const { data } = await getSpeakers(supabase, { ...DEFAULT_SPEAKER_FILTERS, search: "Jane" });
 
     expect(data).toEqual([]);
+  });
+});
+
+describe("getSpeakers / column exposure", () => {
+  it("never selects every column of other users' profiles", async () => {
+    const { supabase, query } = makeQueryMock({ data: [], error: null });
+
+    await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS);
+
+    const columns = String(query.select.mock.calls[0][0]);
+    expect(columns).not.toContain("*");
+    expect(columns).toMatch(/profiles\(id, full_name, avatar_url\)/);
+    expect(columns).not.toMatch(/email|phone|company/);
+  });
+});
+
+describe("getSpeakers / SQL pre-filter and paging", () => {
+  it("pushes the listability rules that live on speaker_profiles into SQL", async () => {
+    const { supabase, query } = makeQueryMock({ data: [], error: null });
+
+    await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS);
+
+    expect(query.gt).toHaveBeenCalledWith("speaking_fee_zar", 0);
+    expect(query.not).toHaveBeenCalledWith("bio", "is", null);
+    expect(query.not).toHaveBeenCalledWith("location", "is", null);
+    for (const column of ["expertise", "languages", "photo_urls"]) {
+      expect(query.not).toHaveBeenCalledWith(column, "eq", "{}");
+    }
+  });
+
+  it("requests one page at the given offset", async () => {
+    const { supabase, query } = makeQueryMock({ data: [], error: null });
+
+    await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS, { offset: 24, limit: 12 });
+
+    expect(query.range).toHaveBeenCalledWith(24, 35);
+  });
+
+  it("defaults to the first SPEAKER_PAGE_SIZE rows", async () => {
+    const { supabase, query } = makeQueryMock({ data: [], error: null });
+
+    await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS);
+
+    expect(query.range).toHaveBeenCalledWith(0, SPEAKER_PAGE_SIZE - 1);
+  });
+
+  it("reports hasMore from the raw row count, before the in-memory listability check", async () => {
+    const rows = [makeSpeaker({ id: "a" }), makeSpeaker({ id: "b", photo_urls: [] })];
+    const { supabase } = makeQueryMock({ data: rows, error: null });
+
+    const result = await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS, { limit: 2 });
+
+    expect(result.data.map((s) => s.id)).toEqual(["a"]);
+    expect(result.hasMore).toBe(true);
+  });
+});
+
+describe("getSpeakerReviews", () => {
+  it("selects only public reviewer fields, newest first", async () => {
+    const { supabase, from, query } = makeQueryMock({ data: [{ id: "r1" }], error: null });
+
+    const result = await getSpeakerReviews(supabase, "sp-1");
+
+    expect(from).toHaveBeenCalledWith("reviews");
+    expect(query.eq).toHaveBeenCalledWith("speaker_id", "sp-1");
+    const columns = String(query.select.mock.calls[0][0]);
+    expect(columns).not.toContain("*");
+    expect(columns).toMatch(/profiles\(id, full_name, avatar_url\)/);
+    expect(result).toEqual({ data: [{ id: "r1" }], error: null });
+  });
+
+  it("returns an error instead of throwing", async () => {
+    const { supabase } = makeQueryMock({ data: null, error: { message: "boom" } });
+
+    const result = await getSpeakerReviews(supabase, "sp-1");
+
+    expect(result).toEqual({ data: [], error: "boom" });
   });
 });
