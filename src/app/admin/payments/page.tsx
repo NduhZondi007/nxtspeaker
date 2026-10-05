@@ -2,102 +2,137 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, CreditCard } from "lucide-react";
 import { createServiceClient } from "@/lib/supabase/server";
+import { requireRole } from "@/lib/auth/session";
 import { TopBar } from "@/components/layout/TopBar";
 import { Badge } from "@/components/ui/Badge";
+import { LoadError } from "@/components/payments/LoadError";
+import { MoneyTile } from "@/components/payments/MoneyTile";
+import { Pagination } from "@/components/payments/Pagination";
+import { PAYMENT_STYLES } from "@/components/payments/status-styles";
 import { formatZARCents } from "@/lib/utils/currency";
 import { requestNowMs } from "@/lib/utils/time";
-import type { Payment, PaymentStatus } from "@/lib/types/database";
+import { parseAdminMoneyTotals } from "@/lib/payments/admin-totals";
+import { PAGE_SIZE, pageRange, parsePage } from "@/lib/payments/pagination";
+import { createLogger } from "@/lib/logger";
+import type { PaymentStatus } from "@/lib/types/database";
+
+const log = createLogger("admin-payments-page");
 
 export const metadata: Metadata = {
   title: "Payments",
   description: "Reconcile client payments and platform commission.",
 };
 
-const STATUS_STYLES: Record<PaymentStatus, string> = {
-  CREATED: "bg-muted/15 text-muted border border-muted/30",
-  PENDING: "bg-secondary/15 text-secondary border border-secondary/30",
-  SUCCEEDED: "bg-success/15 text-success border border-success/30",
-  FAILED: "bg-danger/15 text-danger border border-danger/30",
-  CANCELLED: "bg-muted/15 text-muted border border-muted/30",
-  REFUNDED: "bg-primary/10 text-primary border border-primary/20",
-  NEEDS_REVIEW: "bg-danger/15 text-danger border border-danger/30",
-};
-
 const STALE_AFTER_MINUTES = 30;
+const EXCEPTION_LIMIT = 100;
 
-type PaymentRow = Payment & {
-  bookings?: { id: string; booking_number: string; event_name: string; status: string } | null;
-};
+const PAYMENT_COLUMNS =
+  "id, status, created_at, processing_mode, provider_checkout_id, failure_reason, gross_amount_cents, commission_rate_bps, commission_amount_cents, speaker_amount_cents";
 
-export default async function AdminPaymentsPage() {
-  // The admin layout already re-checks the role server-side; the service
-  // client is used because payments has no write policy and admins need to
-  // see every row regardless of RLS scoping.
+interface PaymentRow {
+  id: string;
+  status: PaymentStatus;
+  created_at: string;
+  processing_mode: "live" | "test" | null;
+  provider_checkout_id: string | null;
+  failure_reason: string | null;
+  gross_amount_cents: number;
+  commission_rate_bps: number;
+  commission_amount_cents: number;
+  speaker_amount_cents: number;
+  bookings: { id: string; booking_number: string; event_name: string; status: string } | null;
+}
+
+interface Props {
+  searchParams: Promise<{ page?: string | string[] }>;
+}
+
+export default async function AdminPaymentsPage({ searchParams }: Props) {
+  // Page-level gate: this page reads every payment with the service-role
+  // key, and a layout-only check does not run on every partial render.
+  await requireRole("ADMIN");
+
+  const page = parsePage((await searchParams).page);
+  const { from, to } = pageRange(page);
   const service = createServiceClient();
+  const staleCutoffIso = new Date(requestNowMs() - STALE_AFTER_MINUTES * 60_000).toISOString();
 
-  const { data: rawPayments } = await service
-    .from("payments")
-    .select("*, bookings(id, booking_number, event_name, status)")
-    .order("created_at", { ascending: false })
-    .limit(200);
+  // Totals come from the whole ledger via the RPC; exceptions from dedicated
+  // queries. Neither depends on which page of the list is being viewed.
+  const [totalsResult, listResult, flaggedResult, orphanedResult] = await Promise.all([
+    service.rpc("admin_money_totals"),
+    service
+      .from("payments")
+      .select(`${PAYMENT_COLUMNS}, bookings(id, booking_number, event_name, status)`)
+      .order("created_at", { ascending: false })
+      .range(from, to),
+    // Flagged for review, or a checkout that never resolved either way.
+    service
+      .from("payments")
+      .select(`${PAYMENT_COLUMNS}, bookings(id, booking_number, event_name, status)`)
+      .or(`status.eq.NEEDS_REVIEW,and(status.eq.PENDING,created_at.lt.${staleCutoffIso})`)
+      .order("created_at", { ascending: false })
+      .limit(EXCEPTION_LIMIT),
+    // Money captured against a booking that is no longer live: a refund is owed.
+    service
+      .from("payments")
+      .select(`${PAYMENT_COLUMNS}, bookings!inner(id, booking_number, event_name, status)`)
+      .eq("status", "SUCCEEDED")
+      .in("bookings.status", ["CANCELLED", "DECLINED"])
+      .order("created_at", { ascending: false })
+      .limit(EXCEPTION_LIMIT),
+  ]);
 
-  const payments = (rawPayments ?? []) as PaymentRow[];
+  const totals = totalsResult.error ? null : parseAdminMoneyTotals(totalsResult.data);
+  if (!totals) {
+    log.error("admin_money_totals failed", { cause: totalsResult.error ?? "malformed result" });
+  }
 
-  const staleCutoff = requestNowMs() - STALE_AFTER_MINUTES * 60_000;
+  const exceptionsError = flaggedResult.error ?? orphanedResult.error;
+  if (exceptionsError) log.error("exception queries failed", { cause: exceptionsError });
+  if (listResult.error) log.error("payments list failed", { cause: listResult.error });
 
-  // Three things need a human: a provider/ledger amount disagreement, money
-  // captured against a booking that is no longer live (a refund is owed), and
-  // a checkout that never resolved either way.
-  const exceptions = payments.filter((p) => {
-    if (p.status === "NEEDS_REVIEW") return true;
-    if (p.status === "SUCCEEDED" && p.bookings && ["CANCELLED", "DECLINED"].includes(p.bookings.status))
-      return true;
-    if (p.status === "PENDING" && new Date(p.created_at).getTime() < staleCutoff) return true;
-    return false;
-  });
+  const exceptions = exceptionsError
+    ? []
+    : ([...(flaggedResult.data ?? []), ...(orphanedResult.data ?? [])] as unknown as PaymentRow[]);
 
-  const captured = payments.filter((p) => p.status === "SUCCEEDED");
-  const collected = captured.reduce((sum, p) => sum + Number(p.gross_amount_cents), 0);
-  const commission = captured.reduce((sum, p) => sum + Number(p.commission_amount_cents), 0);
-  const owed = captured.reduce((sum, p) => sum + Number(p.speaker_amount_cents), 0);
-  const refunded = payments
-    .filter((p) => p.status === "REFUNDED")
-    .reduce((sum, p) => sum + Number(p.refunded_amount_cents), 0);
-
-  const totals = [
-    { label: "Collected", value: formatZARCents(collected), color: "#031E57" },
-    { label: "Commission Earned", value: formatZARCents(commission), color: "#6B9E78" },
-    { label: "Owed to Speakers", value: formatZARCents(owed), color: "#629DAB" },
-    { label: "Refunded", value: formatZARCents(refunded), color: "#C47A6A" },
-  ];
+  const listRows = (listResult.data ?? []) as unknown as PaymentRow[];
+  const hasNext = listRows.length > PAGE_SIZE;
+  const payments = listRows.slice(0, PAGE_SIZE);
 
   return (
     <div>
       <TopBar title="Payments" subtitle="Reconciliation and platform commission" />
 
       <div className="p-4 sm:p-6 space-y-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {totals.map((total) => (
-            <div
-              key={total.label}
-              className="bg-white border border-line rounded-[12px] p-5 relative overflow-hidden"
-            >
-              <div
-                className="absolute top-0 left-0 right-0 h-0.5"
-                style={{ background: `linear-gradient(90deg, ${total.color}, transparent)` }}
-              />
-              <p className="font-space-mono text-2xl font-bold text-ink">{total.value}</p>
-              <p className="text-xs text-muted mt-0.5">{total.label}</p>
-            </div>
-          ))}
-        </div>
+        {totals ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <MoneyTile label="Collected" value={formatZARCents(totals.collected)} tone="primary" />
+            <MoneyTile
+              label="Commission Earned"
+              value={formatZARCents(totals.commission)}
+              tone="success"
+            />
+            <MoneyTile
+              label="Owed to Speakers"
+              value={formatZARCents(totals.owed)}
+              tone="secondary"
+            />
+            <MoneyTile label="Refunded" value={formatZARCents(totals.refunded)} tone="danger" />
+          </div>
+        ) : (
+          <LoadError title="Payment totals could not be loaded" />
+        )}
 
         {/* Exceptions come first and are visually distinct — an unreconciled
-            payment must be impossible to scroll past. */}
-        {exceptions.length > 0 ? (
+            payment must be impossible to scroll past. A failed query is shown
+            as a failure, never as "everything reconciles". */}
+        {exceptionsError ? (
+          <LoadError title="Could not check for payments that need attention" />
+        ) : exceptions.length > 0 ? (
           <div className="bg-white border border-danger/30 rounded-[12px] overflow-hidden">
             <div className="px-5 py-4 border-b border-line flex items-center gap-2">
-              <AlertTriangle size={16} className="text-danger" />
+              <AlertTriangle size={16} className="text-danger" aria-hidden="true" />
               <h2 className="font-archivo font-bold text-primary">
                 Needs attention ({exceptions.length})
               </h2>
@@ -110,87 +145,103 @@ export default async function AdminPaymentsPage() {
           </div>
         ) : (
           <div className="bg-white border border-line rounded-[12px] px-5 py-4 flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-success" />
+            <CheckCircle2 size={16} className="text-success" aria-hidden="true" />
             <p className="text-sm text-ink">Everything reconciles. No payments need attention.</p>
           </div>
         )}
 
         <div className="bg-white border border-line rounded-[12px] overflow-hidden">
           <div className="px-5 py-4 border-b border-line flex items-center gap-2">
-            <CreditCard size={16} className="text-secondary" />
+            <CreditCard size={16} className="text-secondary" aria-hidden="true" />
             <h2 className="font-archivo font-bold text-primary">All payments</h2>
           </div>
 
-          {payments.length === 0 ? (
+          {listResult.error ? (
+            <div className="p-4">
+              <LoadError title="Payments could not be loaded" />
+            </div>
+          ) : payments.length === 0 ? (
             <div className="text-center py-12">
-              <CreditCard size={32} className="text-line mx-auto mb-3" />
-              <p className="font-archivo text-muted">No payments yet</p>
+              <CreditCard size={32} className="text-line mx-auto mb-3" aria-hidden="true" />
+              <p className="font-archivo text-muted">
+                {page > 1 ? "No payments on this page" : "No payments yet"}
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-line">
               {payments.map((payment) => (
-                <div key={payment.id} className="px-5 py-3.5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      {payment.bookings ? (
-                        <Link
-                          href={`/admin/bookings/${payment.bookings.id}`}
-                          className="text-sm font-semibold text-ink hover:text-primary truncate block"
-                        >
-                          {payment.bookings.event_name}
-                        </Link>
-                      ) : (
-                        <p className="text-sm font-semibold text-ink">Unlinked payment</p>
-                      )}
-                      <p className="text-xs text-muted mt-0.5">
-                        {payment.bookings?.booking_number ?? "—"} ·{" "}
-                        {new Date(payment.created_at).toLocaleDateString("en-ZA")}
-                        {payment.processing_mode === "test" && " · TEST"}
-                      </p>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <p className="font-space-mono text-lg font-bold text-ink">
-                        {formatZARCents(payment.gross_amount_cents)}
-                      </p>
-                      <div className="mt-1">
-                        <Badge className={STATUS_STYLES[payment.status]}>{payment.status}</Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                    <Figure label="Gross" value={formatZARCents(payment.gross_amount_cents)} />
-                    <Figure
-                      label={`Commission ${payment.commission_rate_bps / 100}%`}
-                      value={formatZARCents(payment.commission_amount_cents)}
-                      tone="muted"
-                    />
-                    <Figure
-                      label="To speaker"
-                      value={formatZARCents(payment.speaker_amount_cents)}
-                      tone="secondary"
-                    />
-                  </div>
-                </div>
+                <PaymentListRow key={payment.id} payment={payment} />
               ))}
             </div>
           )}
+
+          <Pagination basePath="/admin/payments" page={page} hasNext={hasNext} />
         </div>
       </div>
     </div>
   );
 }
 
-function Figure({
-  label,
-  value,
-  tone = "ink",
-}: {
+interface PaymentListRowProps {
+  payment: PaymentRow;
+}
+
+function PaymentListRow({ payment }: PaymentListRowProps) {
+  return (
+    <div className="px-5 py-3.5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          {payment.bookings ? (
+            <Link
+              href={`/admin/bookings/${payment.bookings.id}`}
+              className="text-sm font-semibold text-ink hover:text-primary truncate block"
+            >
+              {payment.bookings.event_name}
+            </Link>
+          ) : (
+            <p className="text-sm font-semibold text-ink">Unlinked payment</p>
+          )}
+          <p className="text-xs text-muted mt-0.5">
+            {payment.bookings?.booking_number ?? "—"} ·{" "}
+            {new Date(payment.created_at).toLocaleDateString("en-ZA")}
+            {payment.processing_mode === "test" && " · TEST"}
+          </p>
+        </div>
+
+        <div className="text-right shrink-0">
+          <p className="font-space-mono text-lg font-bold text-ink">
+            {formatZARCents(payment.gross_amount_cents)}
+          </p>
+          <div className="mt-1">
+            <Badge className={PAYMENT_STYLES[payment.status]}>{payment.status}</Badge>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+        <Figure label="Gross" value={formatZARCents(payment.gross_amount_cents)} />
+        <Figure
+          label={`Commission ${payment.commission_rate_bps / 100}%`}
+          value={`−${formatZARCents(payment.commission_amount_cents)}`}
+          tone="muted"
+        />
+        <Figure
+          label="To speaker"
+          value={formatZARCents(payment.speaker_amount_cents)}
+          tone="secondary"
+        />
+      </div>
+    </div>
+  );
+}
+
+interface FigureProps {
   label: string;
   value: string;
   tone?: "ink" | "muted" | "secondary";
-}) {
+}
+
+function Figure({ label, value, tone = "ink" }: FigureProps) {
   const toneClass =
     tone === "muted" ? "text-muted" : tone === "secondary" ? "text-secondary font-bold" : "text-ink";
 
@@ -202,13 +253,17 @@ function Figure({
   );
 }
 
-function ExceptionRow({ payment }: { payment: PaymentRow }) {
+interface ExceptionRowProps {
+  payment: PaymentRow;
+}
+
+function ExceptionRow({ payment }: ExceptionRowProps) {
   const reason =
     payment.status === "NEEDS_REVIEW"
       ? (payment.failure_reason ?? "Flagged for review")
       : payment.status === "SUCCEEDED"
         ? "Payment captured against a booking that is no longer live — a refund is owed"
-        : "Checkout has been open for more than 30 minutes with no outcome";
+        : `Checkout has been open for more than ${STALE_AFTER_MINUTES} minutes with no outcome`;
 
   return (
     <div className="px-5 py-3.5">
