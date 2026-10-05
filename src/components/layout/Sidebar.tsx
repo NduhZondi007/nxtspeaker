@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useTransition } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import {
   LayoutDashboard,
   Search,
@@ -72,6 +72,24 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
   const pathname = usePathname();
   const { isOpen, close } = useSidebar();
   const [isPending, startTransition] = useTransition();
+  const navRef = useRef<HTMLElement>(null);
+
+  // Mobile drawer: move focus in on open, close on Escape, and hand focus back
+  // to whatever opened it (the TopBar menu button) on close.
+  useEffect(() => {
+    if (!isOpen) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    navRef.current?.querySelector<HTMLAnchorElement>("a[href]")?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") close();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      opener?.focus();
+    };
+  }, [isOpen, close]);
 
   const navItems =
     role === "ADMIN" ? adminNav : role === "SPEAKER" ? speakerNav : clientNav;
@@ -96,11 +114,12 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
   const sidebarContent = (
     <aside
       className={[
-        "fixed inset-y-0 left-0 z-40 w-64 flex flex-col transition-transform duration-300",
+        "fixed inset-y-0 left-0 z-40 w-64 flex flex-col bg-primary transition-[transform,visibility] duration-300",
         "md:sticky md:top-0 md:h-screen md:translate-x-0 md:z-auto",
-        isOpen ? "translate-x-0" : "-translate-x-full",
+        // visibility:hidden (not just off-screen) keeps the closed drawer's links
+        // out of the tab order and the accessibility tree on mobile.
+        isOpen ? "translate-x-0" : "-translate-x-full max-md:invisible",
       ].join(" ")}
-      style={{ background: "#031E57" }}
     >
       {/* Logo */}
       <div className="px-6 py-6 border-b border-white/10 flex items-center justify-between">
@@ -115,6 +134,7 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
           />
         </Link>
         <button
+          type="button"
           onClick={close}
           className="md:hidden text-white/50 hover:text-white transition-colors p-1"
           aria-label="Close menu"
@@ -146,7 +166,7 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
       )}
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
+      <nav ref={navRef} aria-label="Main" className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto">
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
@@ -155,6 +175,7 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
               key={item.href}
               href={item.href}
               onClick={handleNavClick}
+              aria-current={active ? "page" : undefined}
               className={[
                 "flex items-center gap-3 px-3 py-2.5 rounded-[4px] text-sm transition-all duration-150",
                 active
@@ -193,6 +214,7 @@ export function Sidebar({ role, userName, avatarUrl, isAdmin }: SidebarProps) {
           </div>
         </div>
         <button
+          type="button"
           onClick={handleLogout}
           disabled={isPending}
           className="flex items-center gap-2 w-full px-3 py-2 text-xs text-white/50 hover:text-danger hover:bg-danger/10 rounded-[4px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
