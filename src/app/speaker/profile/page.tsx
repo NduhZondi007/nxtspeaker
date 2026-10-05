@@ -11,19 +11,17 @@ import { useAuth } from "@/components/layout/AuthProvider";
 import { createClient } from "@/lib/supabase/client";
 import { updateSpeakerProfile, saveAvatarUrl, saveSpeakerPhotoUrl, removeSpeakerPhoto } from "@/app/actions/speakers";
 import { getEmbedUrl } from "@/lib/utils/media";
+import { EXPERTISE_OPTIONS, LANGUAGE_OPTIONS } from "@/lib/constants/speakers";
 import type { SpeakerProfile, Profile } from "@/lib/types/database";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("speaker/profile");
 
-const EXPERTISE_OPTIONS = [
-  "Leadership", "AI", "Digital Transformation", "Sustainability", "ESG",
-  "Innovation", "Future of Work", "Neuroscience", "High Performance",
-  "Strategy", "Entrepreneurship", "Change Management", "Finance",
-  "Marketing", "Sales", "Technology", "Healthcare", "Education",
-];
-
-const LANGUAGE_OPTIONS = ["English", "Afrikaans", "Zulu", "Xhosa", "Sotho", "Tswana", "French", "Portuguese", "Swahili"];
+// The speaker's own row, minus the `profiles` join: the profiles row is read
+// once, separately, below. Fetching it twice (join + direct) was redundant.
+const OWN_SPEAKER_COLUMNS =
+  "id, user_id, title, bio, expertise, languages, location, speaking_fee_zar, fee_currency, level, available, virtual_available, hybrid_available, tags, total_events, avg_rating, profile_video_url, photo_urls, status, created_at, updated_at";
+const OWN_PROFILE_COLUMNS = "id, role, base_role, full_name, email, phone, company, avatar_url, created_at, updated_at";
 
 export default function SpeakerProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -39,17 +37,20 @@ export default function SpeakerProfilePage() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const { success, error } = useToast();
   const { user } = useAuth();
+  // Keyed on the id, not the object: AuthProvider hands out a new User object
+  // on every auth event, which would otherwise refetch both rows each time.
+  const userId = user?.id ?? null;
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     let cancelled = false;
 
     async function load() {
       try {
-        const [{ data: p }, { data: s, error: spError }] = await Promise.all([
-          supabase.from("profiles").select("*").eq("id", user!.id).single(),
-          supabase.from("speaker_profiles").select("*, profiles(*)").eq("user_id", user!.id).maybeSingle(),
+        const [{ data: p, error: profileError }, { data: s, error: spError }] = await Promise.all([
+          supabase.from("profiles").select(OWN_PROFILE_COLUMNS).eq("id", userId).maybeSingle(),
+          supabase.from("speaker_profiles").select(OWN_SPEAKER_COLUMNS).eq("user_id", userId).maybeSingle(),
         ]);
         if (cancelled) return;
 
@@ -60,8 +61,9 @@ export default function SpeakerProfilePage() {
         // Without this, a failed or empty fetch left `sp` null forever and
         // the page showed its loading skeleton indefinitely with no
         // indication that anything had gone wrong.
-        if (spError) {
-          setLoadError(spError.message);
+        if (spError || profileError) {
+          log.error("profile read failed", { cause: spError ?? profileError });
+          setLoadError("Could not load your profile. Please refresh and try again.");
         } else if (!s) {
           setLoadError("No speaker profile is linked to this account.");
         } else {
@@ -80,7 +82,7 @@ export default function SpeakerProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [user, supabase]);
+  }, [userId, supabase]);
 
   async function handleSave() {
     if (!sp) return;
@@ -88,15 +90,15 @@ export default function SpeakerProfilePage() {
     const result = await updateSpeakerProfile({
       title: sp.title,
       bio: sp.bio ?? "",
-      expertise: sp.expertise,
-      languages: sp.languages,
+      expertise: sp.expertise ?? [],
+      languages: sp.languages ?? [],
       location: sp.location ?? "",
       speaking_fee_zar: sp.speaking_fee_zar,
-      level: sp.level,
-      available: sp.available,
-      virtual_available: sp.virtual_available,
-      hybrid_available: sp.hybrid_available,
-      tags: sp.tags,
+      level: sp.level ?? 1,
+      available: sp.available ?? true,
+      virtual_available: sp.virtual_available ?? false,
+      hybrid_available: sp.hybrid_available ?? false,
+      tags: sp.tags ?? [],
       profile_video_url: videoUrl.trim() || null,
     });
     if (result.error) error("Save failed", result.error);
@@ -290,10 +292,10 @@ export default function SpeakerProfilePage() {
               onClick={() => fileRef.current?.click()}
               disabled={uploading}
               className="relative group shrink-0"
-              title="Click to change photo"
+              aria-label="Change profile photo"
             >
               {profile?.avatar_url ? (
-                <Image src={profile.avatar_url} alt="Avatar" width={80} height={80} className="rounded-[12px] object-cover" />
+                <Image src={profile.avatar_url} alt="" width={80} height={80} className="rounded-[12px] object-cover" />
               ) : (
                 <div className="w-20 h-20 rounded-[12px] bg-soft flex items-center justify-center text-2xl font-bold text-muted">
                   {profile?.full_name?.charAt(0) ?? "S"}
@@ -306,7 +308,7 @@ export default function SpeakerProfilePage() {
               </div>
             </button>
             <div>
-              <input ref={fileRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
+              <input ref={fileRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" aria-hidden="true" tabIndex={-1} />
               <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} loading={uploading}>
                 <Camera size={14} /> {uploading ? "Uploading..." : "Upload Photo"}
               </Button>
@@ -397,28 +399,37 @@ export default function SpeakerProfilePage() {
           />
 
           <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-            {(sp.photo_urls ?? []).map((url) => (
+            {(sp.photo_urls ?? []).map((url, index) => (
               <div key={url} className="relative aspect-square">
-                <Image src={url} alt="Portfolio photo" fill className="rounded-[8px] object-cover" />
+                <Image
+                  src={url}
+                  alt={`Portfolio photo ${index + 1}`}
+                  fill
+                  sizes="(max-width: 640px) 33vw, 135px"
+                  className="rounded-[8px] object-cover"
+                />
                 {removingPhotoUrl === url ? (
                   <div className="absolute inset-0 bg-ink/50 rounded-[8px] flex items-center justify-center">
                     <Loader2 size={16} className="text-white animate-spin" />
                   </div>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => handleRemovePhoto(url)}
-                    className="absolute top-1 right-1 w-5 h-5 bg-ink/70 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                    title="Remove photo"
+                    aria-label={`Remove portfolio photo ${index + 1}`}
+                    className="absolute top-1 right-1 w-7 h-7 bg-ink/70 text-white rounded-full flex items-center justify-center hover:bg-danger transition-colors"
                   >
-                    <X size={10} />
+                    <X size={14} aria-hidden="true" />
                   </button>
                 )}
               </div>
             ))}
             {(sp.photo_urls ?? []).length < 5 && (
               <button
+                type="button"
                 onClick={() => photoInputRef.current?.click()}
                 disabled={uploadingPhoto || !!removingPhotoUrl}
+                aria-label="Add portfolio photo"
                 className="aspect-square rounded-[8px] border-2 border-dashed border-line flex flex-col items-center justify-center gap-1 text-muted hover:border-secondary hover:text-secondary transition-colors disabled:opacity-50"
               >
                 {uploadingPhoto ? (
@@ -437,10 +448,12 @@ export default function SpeakerProfilePage() {
         {/* Expertise */}
         <div className="bg-white border border-line rounded-[12px] p-5">
           <h2 className="font-archivo font-bold text-primary mb-3">Expertise</h2>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Expertise">
             {EXPERTISE_OPTIONS.map((tag) => (
               <button
                 key={tag}
+                type="button"
+                aria-pressed={sp.expertise?.includes(tag) ?? false}
                 onClick={() => toggleExpertise(tag)}
                 className={[
                   "px-3 py-1.5 text-xs rounded-full border transition-colors",
@@ -458,10 +471,12 @@ export default function SpeakerProfilePage() {
         {/* Languages */}
         <div className="bg-white border border-line rounded-[12px] p-5">
           <h2 className="font-archivo font-bold text-primary mb-3">Languages</h2>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Languages">
             {LANGUAGE_OPTIONS.map((lang) => (
               <button
                 key={lang}
+                type="button"
+                aria-pressed={sp.languages?.includes(lang) ?? false}
                 onClick={() => toggleLanguage(lang)}
                 className={[
                   "px-3 py-1.5 text-xs rounded-full border transition-colors",
@@ -488,9 +503,9 @@ export default function SpeakerProfilePage() {
               <label key={opt.key} className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={sp[opt.key]}
+                  checked={sp[opt.key] ?? false}
                   onChange={(e) => setSp({ ...sp, [opt.key]: e.target.checked })}
-                  className="w-4 h-4 accent-[#FF5700]"
+                  className="w-4 h-4 accent-accent"
                 />
                 <span className="text-sm text-ink">{opt.label}</span>
               </label>

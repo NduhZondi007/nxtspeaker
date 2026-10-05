@@ -2,9 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { getMySpeakerProfileId } from "@/lib/auth/session";
+import { toUserError } from "@/lib/errors";
+import { createLogger } from "@/lib/logger";
 import { canonicalStorageUrl, parseOwnedStorageObjectPath } from "@/lib/utils/storage";
 import type { SpeakerProfileFormData, HospitalityRider } from "@/lib/types/database";
+
+const log = createLogger("actions/speakers");
 
 const AVATAR_BUCKET = "speaker-avatars";
 const PHOTO_BUCKET = "speaker-photos";
@@ -91,7 +97,7 @@ export async function updateSpeakerProfile(data: Partial<SpeakerProfileFormData>
     .update(safeUpdate)
     .eq("user_id", user.id);
 
-  if (error) return { error: error.message };
+  if (error) return { error: toUserError(error, "Could not save your profile. Please try again.") };
 
   revalidatePath("/speaker/profile");
   revalidatePath("/client/discover");
@@ -105,13 +111,16 @@ export async function updateRider(data: Partial<HospitalityRider>) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not authenticated" };
 
-  const { data: sp } = await supabase
-    .from("speaker_profiles")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!sp) return { error: "Speaker profile not found" };
+  // Ownership comes from the session, never from the payload: RiderSchema
+  // strips any client-supplied speaker_id and the row key is set below.
+  let speakerId: string | null;
+  try {
+    speakerId = await getMySpeakerProfileId();
+  } catch (err) {
+    log.error("speaker profile lookup failed", { cause: err });
+    return { error: "Could not save your rider. Please try again." };
+  }
+  if (!speakerId) return { error: "Speaker profile not found" };
 
   // Whitelist the preference columns rather than blacklisting the four
   // known metadata ones: a blacklist passes through any *other* key the
@@ -124,12 +133,14 @@ export async function updateRider(data: Partial<HospitalityRider>) {
   const riderFields = parsed.data;
   if (Object.keys(riderFields).length === 0) return { error: "No valid fields to update" };
 
+  // An upsert, not an update: registration creates the rider row only on a
+  // best-effort basis, and an update against a missing row silently changed
+  // nothing — the speaker could never save a rider at all.
   const { error } = await supabase
     .from("hospitality_riders")
-    .update(riderFields)
-    .eq("speaker_id", sp.id);
+    .upsert({ ...riderFields, speaker_id: speakerId }, { onConflict: "speaker_id" });
 
-  if (error) return { error: error.message };
+  if (error) return { error: toUserError(error, "Could not save your rider. Please try again.") };
 
   revalidatePath("/speaker/rider");
 
@@ -141,6 +152,74 @@ export async function updateRider(data: Partial<HospitalityRider>) {
 // were previously enforced only in the browser upload handler, which a direct
 // storage API call bypasses entirely.
 const MAX_PHOTOS = 5;
+const PHOTO_WRITE_ATTEMPTS = 3;
+
+type PhotoListResult =
+  | { ok: true; urls: string[] }
+  | { ok: false; reason: "read_failed" | "not_found" | "conflict" | "write_failed" | "rejected"; message?: string };
+
+/** Postgres array literal for an equality filter on a text[] column. */
+function toPgTextArray(values: string[]): string {
+  const quoted = values.map((v) => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`);
+  return `{${quoted.join(",")}}`;
+}
+
+/**
+ * Read-modify-write of speaker_profiles.photo_urls as compare-and-swap.
+ *
+ * Two uploads finishing together used to read the same list and each write
+ * back "list + mine", so one photo silently vanished (and MAX_PHOTOS could be
+ * exceeded). The UPDATE is now guarded by the exact list that was read: if
+ * another request changed it in between, zero rows match, and the whole
+ * step — including the limit check in `change` — is retried on a fresh read.
+ *
+ * An RPC doing `array_append ... WHERE cardinality(photo_urls) < 5` would make
+ * this a single statement; that needs a migration, so this is the app-side
+ * equivalent.
+ */
+async function mutatePhotoUrls(
+  supabase: SupabaseClient,
+  userId: string,
+  change: (current: string[]) => { next: string[] } | { reject: string } | { unchanged: true }
+): Promise<PhotoListResult> {
+  for (let attempt = 0; attempt < PHOTO_WRITE_ATTEMPTS; attempt++) {
+    const { data: sp, error: readError } = await supabase
+      .from("speaker_profiles")
+      .select("photo_urls")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (readError) {
+      log.error("photo_urls read failed", { cause: readError });
+      return { ok: false, reason: "read_failed" };
+    }
+    if (!sp) return { ok: false, reason: "not_found" };
+
+    const original = (sp.photo_urls as string[] | null) ?? null;
+    const decision = change(original ?? []);
+    if ("reject" in decision) return { ok: false, reason: "rejected", message: decision.reject };
+    if ("unchanged" in decision) return { ok: true, urls: original ?? [] };
+
+    let update = supabase
+      .from("speaker_profiles")
+      .update({ photo_urls: decision.next })
+      .eq("user_id", userId);
+    update =
+      original === null
+        ? update.is("photo_urls", null)
+        : update.eq("photo_urls", toPgTextArray(original));
+
+    const { data: updated, error: writeError } = await update.select("id");
+    if (writeError) {
+      log.error("photo_urls write failed", { cause: writeError });
+      return { ok: false, reason: "write_failed" };
+    }
+    if (Array.isArray(updated) && updated.length > 0) return { ok: true, urls: decision.next };
+
+    log.warn("photo_urls changed concurrently; retrying", { attempt });
+  }
+  return { ok: false, reason: "conflict" };
+}
 
 export async function saveSpeakerPhotoUrl(url: string) {
   const supabase = await createClient();
@@ -154,26 +233,20 @@ export async function saveSpeakerPhotoUrl(url: string) {
   if (!parseOwnedStorageObjectPath(url, PHOTO_BUCKET, user.id))
     return { error: "Invalid photo URL" };
 
-  const { data: sp } = await supabase
-    .from("speaker_profiles")
-    .select("photo_urls")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!sp) return { error: "Speaker profile not found" };
-  if ((sp.photo_urls ?? []).length >= MAX_PHOTOS)
-    return { error: `Maximum ${MAX_PHOTOS} photos allowed` };
-
   // Strip query params before saving to DB
   const cleanUrl = canonicalStorageUrl(url);
-  if ((sp.photo_urls ?? []).includes(cleanUrl)) return { url: cleanUrl };
 
-  const { error: dbError } = await supabase
-    .from("speaker_profiles")
-    .update({ photo_urls: [...(sp.photo_urls ?? []), cleanUrl] })
-    .eq("user_id", user.id);
+  const result = await mutatePhotoUrls(supabase, user.id, (current) => {
+    if (current.includes(cleanUrl)) return { unchanged: true };
+    if (current.length >= MAX_PHOTOS) return { reject: `Maximum ${MAX_PHOTOS} photos allowed` };
+    return { next: [...current, cleanUrl] };
+  });
 
-  if (dbError) return { error: dbError.message };
+  if (!result.ok) {
+    if (result.reason === "not_found") return { error: "Speaker profile not found" };
+    if (result.reason === "rejected") return { error: result.message! };
+    return { error: "Could not save the photo. Please try again." };
+  }
 
   revalidatePath("/speaker/profile");
   revalidatePath("/client/discover");
@@ -189,30 +262,26 @@ export async function removeSpeakerPhoto(url: string) {
   const storagePath = parseOwnedStorageObjectPath(url, PHOTO_BUCKET, user.id);
   if (!storagePath) return { error: "Not authorized to delete this photo" };
 
-  const { data: sp } = await supabase
-    .from("speaker_profiles")
-    .select("photo_urls")
-    .eq("user_id", user.id)
-    .single();
-  if (!sp) return { error: "Speaker profile not found" };
-
   // Photos are stored canonically (query string stripped by
   // saveSpeakerPhotoUrl). Filtering on the raw `url` meant that a caller
   // passing a cache-busted URL deleted the storage object while leaving the
   // row's URL in place — a permanently broken image on the public profile.
   const cleanUrl = canonicalStorageUrl(url);
 
-  const { error: dbError } = await supabase
-    .from("speaker_profiles")
-    .update({
-      photo_urls: ((sp.photo_urls as string[]) ?? []).filter(
-        (u: string) => canonicalStorageUrl(u) !== cleanUrl
-      ),
-    })
-    .eq("user_id", user.id);
-  if (dbError) return { error: dbError.message };
+  const result = await mutatePhotoUrls(supabase, user.id, (current) => {
+    const next = current.filter((u) => canonicalStorageUrl(u) !== cleanUrl);
+    return next.length === current.length ? { unchanged: true } : { next };
+  });
 
-  await supabase.storage.from(PHOTO_BUCKET).remove([storagePath]);
+  if (!result.ok) {
+    if (result.reason === "not_found") return { error: "Speaker profile not found" };
+    return { error: "Could not remove the photo. Please try again." };
+  }
+
+  // The profile no longer references the file, so the user-visible removal
+  // has happened; a failed delete only leaves an orphaned object behind.
+  const { error: storageError } = await supabase.storage.from(PHOTO_BUCKET).remove([storagePath]);
+  if (storageError) log.error("photo storage delete failed (orphaned object)", { path: storagePath, cause: storageError });
 
   revalidatePath("/speaker/profile");
   revalidatePath("/client/discover");
@@ -238,7 +307,7 @@ export async function saveAvatarUrl(url: string) {
     .update({ avatar_url: cleanUrl })
     .eq("id", user.id);
 
-  if (dbError) return { error: dbError.message };
+  if (dbError) return { error: toUserError(dbError, "Could not save your profile photo. Please try again.") };
 
   revalidatePath("/speaker/profile");
   revalidatePath("/client/discover");

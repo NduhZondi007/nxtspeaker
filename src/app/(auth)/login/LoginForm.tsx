@@ -53,7 +53,7 @@ export function LoginForm() {
         <p className="text-sm text-muted text-center mb-8">Sign in to your account to continue</p>
 
         {error && (
-          <div className="mb-4 p-3 rounded-[4px] bg-danger/10 border border-danger/20 text-sm text-danger">
+          <div role="alert" className="mb-4 p-3 rounded-[4px] bg-danger/10 border border-danger/20 text-sm text-danger">
             {error}
           </div>
         )}
@@ -67,21 +67,14 @@ export function LoginForm() {
             required
             autoComplete="email"
           />
-          <div className="space-y-1">
-            <Input
-              name="password"
-              type="password"
-              label="Password"
-              placeholder="••••••••"
-              required
-              autoComplete="current-password"
-            />
-            <div className="flex justify-end">
-              <span className="text-xs text-secondary font-space-mono cursor-not-allowed opacity-60">
-                Forgot password?
-              </span>
-            </div>
-          </div>
+          <Input
+            name="password"
+            type="password"
+            label="Password"
+            placeholder="••••••••"
+            required
+            autoComplete="current-password"
+          />
 
           <div className="flex justify-center pt-2">
             <Button

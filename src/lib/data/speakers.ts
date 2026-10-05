@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { SpeakerProfile } from "@/lib/types/database";
+import type { Review, SpeakerProfile } from "@/lib/types/database";
 import type { FilterState } from "@/components/speakers/SpeakerFilters";
 import { isSpeakerListable } from "@/lib/utils/profile-completeness";
 
@@ -12,6 +12,68 @@ export const DEFAULT_SPEAKER_FILTERS: FilterState = {
   maxFee: 200000,
   sort: "rating_desc",
 };
+
+/** Rows per discover page. Listability is re-checked in memory, so a page can render fewer. */
+export const SPEAKER_PAGE_SIZE = 24;
+
+/**
+ * Columns a client may see about OTHER users.
+ *
+ * `profiles(*)` used to ship every listed speaker's email address and phone
+ * number to every signed-in browser. Only what the discover grid and the
+ * speaker card render is selected; add a column here deliberately, never `*`.
+ */
+export const PUBLIC_PROFILE_COLUMNS = "id, full_name, avatar_url";
+
+export const PUBLIC_SPEAKER_COLUMNS = [
+  "id",
+  "user_id",
+  "title",
+  "bio",
+  "expertise",
+  "languages",
+  "location",
+  "speaking_fee_zar",
+  "fee_currency",
+  "level",
+  "available",
+  "virtual_available",
+  "hybrid_available",
+  "tags",
+  "total_events",
+  "avg_rating",
+  "profile_video_url",
+  "photo_urls",
+  "status",
+  "created_at",
+  "updated_at",
+  `profiles(${PUBLIC_PROFILE_COLUMNS})`,
+].join(", ");
+
+const PUBLIC_REVIEW_COLUMNS = [
+  "id",
+  "booking_id",
+  "reviewer_id",
+  "speaker_id",
+  "rating",
+  "headline",
+  "body",
+  "verified",
+  "created_at",
+  `profiles(${PUBLIC_PROFILE_COLUMNS})`,
+].join(", ");
+
+export interface SpeakerPageOptions {
+  offset?: number;
+  limit?: number;
+}
+
+export interface SpeakerPage {
+  data: SpeakerProfile[];
+  error: string | null;
+  /** True when the raw page was full, so another page may exist. */
+  hasMore: boolean;
+}
 
 /**
  * Repository layer for speaker_profiles reads.
@@ -26,12 +88,22 @@ export const DEFAULT_SPEAKER_FILTERS: FilterState = {
  */
 export async function getSpeakers(
   supabase: SupabaseClient,
-  filters: FilterState
-): Promise<{ data: SpeakerProfile[]; error: string | null }> {
+  filters: FilterState,
+  { offset = 0, limit = SPEAKER_PAGE_SIZE }: SpeakerPageOptions = {}
+): Promise<SpeakerPage> {
+  // The parts of isSpeakerListable that live on speaker_profiles are pushed
+  // into SQL so incomplete rows are never downloaded. isSpeakerListable stays
+  // the final word below (it also covers the avatar on the joined profile).
   let query = supabase
     .from("speaker_profiles")
-    .select("*, profiles(*)")
-    .eq("status", "ACTIVE");
+    .select(PUBLIC_SPEAKER_COLUMNS)
+    .eq("status", "ACTIVE")
+    .gt("speaking_fee_zar", 0)
+    .not("bio", "is", null)
+    .not("location", "is", null)
+    .not("expertise", "eq", "{}")
+    .not("languages", "eq", "{}")
+    .not("photo_urls", "eq", "{}");
 
   if (filters.available !== null) query = query.eq("available", filters.available);
   if (filters.minFee > 0) query = query.gte("speaking_fee_zar", filters.minFee);
@@ -53,24 +125,41 @@ export async function getSpeakers(
     default:
       query = query.order("avg_rating", { ascending: false });
   }
+  // Stable tiebreak so pages never overlap or skip rows with equal sort keys.
+  query = query.order("id", { ascending: true }).range(offset, offset + limit - 1);
 
   const { data, error } = await query;
   if (error) {
-    return { data: [], error: error.message };
+    return { data: [], error: error.message, hasMore: false };
   }
 
-  // Only fully-complete profiles are shown to clients. Applied here rather
-  // than as PostgREST filters because the rule spans both tables (the avatar
-  // lives on the joined `profiles` row) and because sharing one predicate with
-  // the speaker's own progress bar is what stops the two from disagreeing —
-  // see isSpeakerListable in @/lib/utils/profile-completeness.
-  let results = ((data ?? []) as SpeakerProfile[]).filter((sp) => isSpeakerListable(sp));
+  const raw = (data ?? []) as unknown as SpeakerProfile[];
+
+  // Only fully-complete profiles are shown to clients. Sharing one predicate
+  // with the speaker's own progress bar is what stops the two from
+  // disagreeing — see isSpeakerListable in @/lib/utils/profile-completeness.
+  let results = raw.filter((sp) => isSpeakerListable(sp));
 
   if (filters.search) {
     results = filterBySearch(results, filters.search);
   }
 
-  return { data: results, error: null };
+  return { data: results, error: null, hasMore: raw.length === limit };
+}
+
+/** Reviews for one speaker, newest first, with only public reviewer fields. */
+export async function getSpeakerReviews(
+  supabase: SupabaseClient,
+  speakerId: string
+): Promise<{ data: Review[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("reviews")
+    .select(PUBLIC_REVIEW_COLUMNS)
+    .eq("speaker_id", speakerId)
+    .order("created_at", { ascending: false });
+
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []) as unknown as Review[], error: null };
 }
 
 /** Client-side text filter — name/title/expertise/bio substring match. */

@@ -22,6 +22,13 @@
   --color-success: #6B9E78;
   --color-danger:  #C47A6A;
 
+  /* Primary (navy) darkened for hover on navy buttons and surfaces */
+  --color-primary-hover: #021640;
+
+  /* Elevation */
+  --shadow-card:       0 1px 3px rgb(0 0 0 / 0.06);
+  --shadow-card-hover: 0 8px 32px rgb(98 157 171 / 0.20), 0 0 0 1px rgb(98 157 171 / 0.25);
+
   /* Typography */
   --font-archivo:    var(--nf-archivo), system-ui, sans-serif;
   --font-hanken:     var(--nf-hanken), system-ui, sans-serif;
@@ -61,8 +68,8 @@
 }
 
 :root {
-  --background: #FFFFFF;
-  --foreground: #031E57;
+  --background: var(--color-tertiary);
+  --foreground: var(--color-primary);
 }
 
 * {
@@ -91,9 +98,9 @@ h1, h2, h3, h4, h5, h6 {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #ECECF0;
+  background: var(--color-line);
 }
 ::-webkit-scrollbar-thumb {
-  background: #629DAB;
+  background: var(--color-secondary);
   border-radius: 3px;
 }

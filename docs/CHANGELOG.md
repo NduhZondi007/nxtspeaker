@@ -667,6 +667,73 @@ Versions follow [Semantic Versioning](https://semver.org/).
   `COUNT(*)+1` booking number generation with atomic Postgres sequence
   `booking_number_seq`
 
+### Security — shell reliability & security pass (2026-10-05)
+- **Security headers on every route.** `next.config.ts` now sends a CSP (frame-ancestors,
+  object-src, base-uri, form-action — no script-src/default-src, which would break Next's
+  inline bootstrap without nonces), `X-Frame-Options: DENY`, `X-Content-Type-Options`,
+  `Referrer-Policy` and `Permissions-Policy` (HSTS is left to Vercel). Previously any site could frame the
+  login and booking pages.
+- **Login and signup no longer reveal whether an email has an account.** Provider
+  messages ("already registered", sign-in errors) are replaced with generic ones.
+  `loginUser` also stopped rewriting a real profile row with registration metadata when
+  the profile read merely *failed*; it now recovers only on a genuine no-row, with
+  `ON CONFLICT DO NOTHING`.
+- **Discover stopped shipping every speaker's and reviewer's email and phone** to every
+  signed-in browser (`profiles(*)` → explicit public columns).
+
+### Fixed — shell reliability & security pass (2026-10-05)
+- **`/login` redirect loop** when a portal layout's profile read failed: the client,
+  speaker and admin layouts treated a failed query as signed out. They now use the
+  request-cached `getMyProfile`/`requireRole` helpers, which throw to an error boundary.
+- **No error boundaries existed.** Each portal now has a branded `error.tsx` (Try again,
+  dashboard link, Sign out), plus a root boundary, `global-error.tsx`, a branded 404 and
+  the missing `loading.tsx` states.
+- **Hospitality rider**: saving failed for speakers with no rider row (`updateRider` was
+  update-only; now an upsert keyed on the session's speaker id), and the page hung on its
+  skeleton forever when the row was missing or the read failed. It is now loaded on the
+  server. Every Supabase error in `actions/speakers.ts` is checked, raw database messages
+  no longer reach the browser, and `photo_urls` writes are compare-and-swap so two
+  concurrent uploads cannot drop a photo or exceed the five-photo limit.
+- **Speaker profile editor** read the `profiles` row twice and refetched whenever the
+  auth `User` object changed identity; chips now expose `aria-pressed` and the photo
+  remove button has a name and a larger target.
+- **AuthProvider** awaited a Supabase query inside `onAuthStateChange` (documented
+  deadlock risk), fetched the profile twice on load, refetched on every hourly token
+  refresh and swallowed read errors. It now defers the fetch, ignores stale responses and
+  exposes an `error`.
+- **Base URL on Vercel production** fell back to the per-deployment `VERCEL_URL`, so
+  `metadataBase`, OG images and the Organization schema pointed at a deployment; it now
+  prefers `VERCEL_PROJECT_PRODUCTION_URL`.
+- **Discover reviews**: a slow review response could overwrite the reviews of the
+  speaker now on screen, and the previous speaker's reviews showed while the next loaded.
+- **Accessibility**: `Modal` is a labelled `aria-modal` dialog with a focus trap and
+  focus restore; `SpeakerModal` tabs have tablist semantics and reset per speaker, and
+  its lightbox is a labelled dialog whose Escape no longer closes the whole profile;
+  discover filters have labels, fieldset/legend radio groups with shared names and
+  `aria-pressed` chips; toasts render in a polite live region with a named dismiss
+  button; `Input`/`Textarea` use `useId` ids (two same-label fields no longer collide)
+  with `aria-invalid` and `aria-describedby`; login/signup errors are `role="alert"`;
+  the mobile nav drawer is hidden from the tab order when closed, focuses its first link
+  on open, closes on Escape, returns focus, and marks the active link
+  `aria-current="page"`.
+
+### Changed — shell reliability & security pass (2026-10-05)
+- Middleware verifies sessions with `getClaims()` (local JWT verification against the
+  cached JWKS) instead of a `getUser()` round trip, and its matcher is narrowed to `/`,
+  the auth pages and the three portals — images, RSC prefetches, robots, sitemap,
+  manifest and OG image no longer hit Auth. A verification failure or missing env var
+  degrades instead of crashing the edge function.
+- Discover selects narrow columns, applies listability rules in SQL, pages results with
+  "Load more", and derives search in memory instead of refetching on each keystroke.
+- Expertise, language and tier vocabularies are shared from `src/lib/constants/speakers.ts`,
+  so the profile editor, discover filters and admin modal no longer disagree.
+- `SpeakerCard` hover shadow is CSS (was set from JS on every mouse move) with correct
+  `sizes`; the speaker fee in `SpeakerModal` is no longer orange (orange is for actions).
+- Toast and sidebar context values are memoised; inline hex/rgba backgrounds in the
+  Sidebar and TopBar are replaced with theme tokens.
+- The TopBar notification bell (no handler, no accessible name) and the disabled
+  "Forgot password?" placeholder are removed until real features exist.
+
 ---
 
 ## [0.1.0] — 2026-05-09
