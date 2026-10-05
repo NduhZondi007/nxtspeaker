@@ -288,7 +288,7 @@ At the end of the session, output a handover block:
 - Write the SQL, test locally, then `npx supabase db push`
 - Commit the migration file with type `migration`
 
-**RLS rules:** Every table must have RLS enabled. Every policy must be tested in Supabase Studio before pushing.
+**RLS rules:** Every table must have RLS enabled. Every policy, trigger guard and SECURITY DEFINER function gets a test in `supabase/tests/*.test.sql` — the attack it blocks and the legitimate path it must keep open. Run `npm run test:db` (needs a local Postgres: `PGHOST/PGUSER/PGPASSWORD`); CI runs it on every PR touching `supabase/`. Remember INSERT and DELETE, not just UPDATE: the 2026-10-05 audit found every INSERT path unguarded.
 
 ---
 
