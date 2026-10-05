@@ -69,6 +69,20 @@ BEGIN
   RAISE NOTICE 'ok   - %', p_name;
 END $$;
 
+-- One helper per (user, query, expected count).
+CREATE FUNCTION tests.sees(p_user TEXT, p_what TEXT, p_sql TEXT, p_expected INT)
+RETURNS VOID LANGUAGE plpgsql AS $$
+DECLARE n INT;
+BEGIN
+  PERFORM tests.login(p_user);
+  EXECUTE 'SELECT count(*) FROM (' || p_sql || ') q' INTO n;
+  EXECUTE 'RESET ROLE';
+  IF n <> p_expected THEN
+    RAISE EXCEPTION 'FAIL - % sees % : expected %, got %', p_user, p_what, p_expected, n;
+  END IF;
+  RAISE NOTICE 'ok   - % sees % = %', p_user, p_what, n;
+END $$;
+
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA tests TO anon, authenticated, service_role;
 
 -- Cast: two clients, two speakers, one admin.
