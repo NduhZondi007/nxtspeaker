@@ -61,6 +61,7 @@ export function RegisterForm() {
             </p>
 
             <button
+              type="button"
               onClick={() => setRole("CLIENT")}
               className="w-full p-4 border-2 border-line rounded-[8px] text-left transition-all group hover:border-secondary hover:bg-soft"
             >
@@ -78,6 +79,7 @@ export function RegisterForm() {
             </button>
 
             <button
+              type="button"
               onClick={() => setRole("SPEAKER")}
               className="w-full p-4 border-2 border-line rounded-[8px] text-left transition-all group hover:border-secondary hover:bg-soft"
             >
@@ -105,6 +107,7 @@ export function RegisterForm() {
           /* Step 2 — Registration form */
           <div>
             <button
+              type="button"
               onClick={() => setRole(null)}
               className="flex items-center gap-1 text-xs text-muted hover:text-primary mb-6 transition-colors"
             >
@@ -127,14 +130,14 @@ export function RegisterForm() {
             </div>
 
             {error && (
-              <div className="mb-4 p-3 rounded-[4px] bg-danger/10 border border-danger/20 text-sm text-danger">
+              <div role="alert" className="mb-4 p-3 rounded-[4px] bg-danger/10 border border-danger/20 text-sm text-danger">
                 {error}
               </div>
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <Input name="full_name" label="Full Name" placeholder="Your full name" required />
-              <Input name="email" type="email" label="Email Address" placeholder="you@example.com" required />
+              <Input name="full_name" label="Full Name" placeholder="Your full name" required autoComplete="name" />
+              <Input name="email" type="email" label="Email Address" placeholder="you@example.com" required autoComplete="email" />
               <Input
                 name="password"
                 type="password"
@@ -142,10 +145,11 @@ export function RegisterForm() {
                 placeholder="At least 8 characters"
                 required
                 minLength={8}
+                autoComplete="new-password"
               />
-              <Input name="phone" type="tel" label="Phone Number" placeholder="+27 82 000 0000" />
+              <Input name="phone" type="tel" label="Phone Number" placeholder="+27 82 000 0000" autoComplete="tel" />
               {role === "CLIENT" && (
-                <Input name="company" label="Company / Organisation" placeholder="Your company name" />
+                <Input name="company" label="Company / Organisation" placeholder="Your company name" autoComplete="organization" />
               )}
 
               <div className="flex justify-center pt-2">
