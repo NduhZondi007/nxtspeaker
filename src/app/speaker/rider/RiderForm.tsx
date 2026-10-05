@@ -1,51 +1,44 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useId, useState } from "react";
 import { TopBar } from "@/components/layout/TopBar";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/Toast";
-import { useAuth } from "@/components/layout/AuthProvider";
-import { createClient } from "@/lib/supabase/client";
 import { updateRider } from "@/app/actions/speakers";
-import type { HospitalityRider, AccommodationStandard, MealTiming } from "@/lib/types/database";
+import type { AccommodationStandard, MealTiming } from "@/lib/types/database";
+import type { RiderPreferences } from "./defaults";
 
-export default function SpeakerRiderPage() {
-  const [rider, setRider] = useState<HospitalityRider | null>(null);
+const DIETARY_OPTIONS = ["vegetarian", "vegan", "halal", "kosher", "gluten-free"];
+
+interface RiderFormProps {
+  initialRider: RiderPreferences;
+  /** No rider row exists yet; the first save creates it. */
+  isNew: boolean;
+}
+
+export function RiderForm({ initialRider, isNew }: RiderFormProps) {
+  const [rider, setRider] = useState<RiderPreferences>(initialRider);
+  const [saved, setSaved] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const { success, error } = useToast();
-  const { user } = useAuth();
-  const supabase = useMemo(() => createClient(), []);
-
-  useEffect(() => {
-    if (!user) return;
-    async function load() {
-      const { data: sp } = await supabase.from("speaker_profiles").select("id").eq("user_id", user!.id).single();
-      if (!sp) return;
-      const { data: r } = await supabase.from("hospitality_riders").select("*").eq("speaker_id", sp.id).single();
-      setRider(r as HospitalityRider);
-    }
-    load();
-  }, [user, supabase]);
+  const id = useId();
 
   async function handleSave() {
-    if (!rider) return;
     setSaving(true);
-    const result = await updateRider(rider);
-    if (result.error) error("Save failed", result.error);
-    else success("Rider saved!", "Your hospitality requirements have been updated.");
-    setSaving(false);
-  }
-
-  if (!rider) {
-    return (
-      <div>
-        <TopBar title="Hospitality Rider" />
-        <div className="p-6">
-          <div className="h-96 bg-soft rounded-[12px] animate-pulse" />
-        </div>
-      </div>
-    );
+    try {
+      const result = await updateRider(rider);
+      if (result.error) {
+        error("Save failed", result.error);
+      } else {
+        setSaved(true);
+        success("Rider saved!", "Your hospitality requirements have been updated.");
+      }
+    } catch {
+      error("Save failed", "Something went wrong — please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -55,6 +48,15 @@ export default function SpeakerRiderPage() {
       </TopBar>
 
       <div className="p-4 sm:p-6 max-w-2xl space-y-5">
+        {!saved && (
+          <div role="status" className="bg-support/40 border border-support rounded-[12px] p-4">
+            <p className="text-sm font-semibold text-primary">You haven&apos;t set up your rider yet</p>
+            <p className="text-xs text-ink mt-1">
+              We&apos;ve filled in common defaults. Adjust them and save so organisers see your requirements.
+            </p>
+          </div>
+        )}
+
         {/* Water */}
         <Section title="Water & Beverages">
           <CheckRow label="Still water"            checked={rider.water_still}     onChange={(v) => setRider({ ...rider, water_still: v })} />
@@ -66,8 +68,9 @@ export default function SpeakerRiderPage() {
         <Section title="Catering & Dietary">
           <CheckRow label="Meal required" checked={rider.meal_required} onChange={(v) => setRider({ ...rider, meal_required: v })} />
           <div>
-            <label className="text-xs font-space-mono font-semibold text-muted uppercase tracking-wide block mb-1.5">Meal timing</label>
+            <label htmlFor={`${id}-meal-timing`} className="text-xs font-space-mono font-semibold text-muted uppercase tracking-wide block mb-1.5">Meal timing</label>
             <select
+              id={`${id}-meal-timing`}
               value={rider.meal_timing}
               onChange={(e) => setRider({ ...rider, meal_timing: e.target.value as MealTiming })}
               className="px-3 py-2 text-sm border border-line rounded-[6px] bg-white text-ink focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
@@ -77,10 +80,10 @@ export default function SpeakerRiderPage() {
               <option value="no preference">No preference</option>
             </select>
           </div>
-          <div>
-            <label className="text-xs font-space-mono font-semibold text-muted uppercase tracking-wide block mb-1.5">Dietary restrictions</label>
+          <fieldset>
+            <legend className="text-xs font-space-mono font-semibold text-muted uppercase tracking-wide block mb-1.5">Dietary restrictions</legend>
             <div className="flex flex-wrap gap-2">
-              {["vegetarian", "vegan", "halal", "kosher", "gluten-free"].map((d) => (
+              {DIETARY_OPTIONS.map((d) => (
                 <label key={d} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
@@ -94,13 +97,13 @@ export default function SpeakerRiderPage() {
                           : current.filter((r) => r !== d),
                       });
                     }}
-                    className="accent-[#FF5700]"
+                    className="accent-accent"
                   />
                   <span className="text-sm text-ink capitalize">{d}</span>
                 </label>
               ))}
             </div>
-          </div>
+          </fieldset>
           <Textarea
             label="Dietary notes"
             placeholder="Any specific dietary requirements or allergies..."
@@ -138,8 +141,9 @@ export default function SpeakerRiderPage() {
           <CheckRow label="Accommodation required" checked={rider.accommodation_required} onChange={(v) => setRider({ ...rider, accommodation_required: v })} />
           {rider.accommodation_required && (
             <div>
-              <label className="text-xs font-space-mono font-semibold text-muted uppercase tracking-wide block mb-1.5">Accommodation standard</label>
+              <label htmlFor={`${id}-accommodation`} className="text-xs font-space-mono font-semibold text-muted uppercase tracking-wide block mb-1.5">Accommodation standard</label>
               <select
+                id={`${id}-accommodation`}
                 value={rider.accommodation_standard}
                 onChange={(e) => setRider({ ...rider, accommodation_standard: e.target.value as AccommodationStandard })}
                 className="px-3 py-2 text-sm border border-line rounded-[6px] bg-white text-ink focus:outline-none focus:ring-2 focus:ring-secondary/20 focus:border-secondary"
@@ -155,6 +159,7 @@ export default function SpeakerRiderPage() {
         {/* Additional */}
         <Section title="Additional Requests">
           <Textarea
+            aria-label="Additional requests"
             placeholder="Any other requirements not covered above..."
             value={rider.additional_requests ?? ""}
             onChange={(e) => setRider({ ...rider, additional_requests: e.target.value })}
@@ -187,7 +192,7 @@ function CheckRow({ label, checked, onChange }: { label: string; checked: boolea
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-4 h-4 accent-[#FF5700]"
+        className="w-4 h-4 accent-accent"
       />
       <span className="text-sm text-ink">{label}</span>
     </label>
