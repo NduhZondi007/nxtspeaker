@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 export const alt = "NXT Speaker — Book Speakers Directly";
@@ -5,6 +7,11 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default async function Image() {
+  // There is no vector master of the 2026 badge yet, so the watermark is the
+  // white PNG inlined as a data URI — Satori cannot fetch relative URLs.
+  const badge = await readFile(join(process.cwd(), "public/logoMark_white.png"));
+  const badgeSrc = `data:image/png;base64,${badge.toString("base64")}`;
+
   return new ImageResponse(
     (
       <div
@@ -43,7 +50,7 @@ export default async function Image() {
           }}
         />
 
-        {/* Angular mark watermark — right side, 12% opacity */}
+        {/* Badge watermark — right side, 12% opacity */}
         <div
           style={{
             position: "absolute",
@@ -54,18 +61,7 @@ export default async function Image() {
             display: "flex",
           }}
         >
-          <svg
-            width="480"
-            height="480"
-            viewBox="0 0 32 32"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <polygon points="4,24 8,24 20,8 16,8" fill="#FFFFFF" />
-            <polygon points="14,24 17,24 28,8 25,8" fill="#FFFFFF" />
-            <polygon points="4,18 8,18 8,15 4,15" fill="#FFFFFF" />
-            <polygon points="24,17 28,17 28,14 24,14" fill="#FFFFFF" />
-          </svg>
+          <img src={badgeSrc} width={480} height={480} alt="" />
         </div>
 
         {/* Main content */}

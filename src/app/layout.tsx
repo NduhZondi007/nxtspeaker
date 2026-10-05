@@ -62,10 +62,6 @@ export const metadata: Metadata = {
       "Discover and book world-class speakers directly. No agencies, no gatekeepers.",
     images: ["/opengraph-image"],
   },
-  icons: {
-    icon: "/icon.svg",
-    apple: "/apple-icon.png",
-  },
 };
 
 export const viewport: Viewport = {
@@ -79,7 +75,7 @@ const organizationSchema = {
   description:
     "South Africa's disruptive speaker booking platform connecting event organisers directly with world-class speakers — no agencies, no gatekeepers.",
   url: baseUrl,
-  logo: `${baseUrl}/icon.svg`,
+  logo: `${baseUrl}/logoMark_navy.png`,
   areaServed: "ZA",
   knowsAbout: ["Speaker Booking", "Event Management", "Corporate Events", "Keynote Speakers"],
 };

@@ -39,7 +39,7 @@ export function RegisterForm() {
             src="/logoStack_navy.png"
             alt="NXT Speaker"
             width={120}
-            height={120}
+            height={113}
             className="object-contain"
             priority
           />
