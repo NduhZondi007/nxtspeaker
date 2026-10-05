@@ -104,19 +104,12 @@ Versions follow [Semantic Versioning](https://semver.org/).
   returning a Supabase client.
 - Middleware no longer runs a Supabase session refresh for `api/webhooks`. A provider
   webhook carries no cookies, so the refresh could never do anything for it.
-- Speakers can **mark a PAID event delivered** once its date has passed, starting the
-  payout hold; clients can **cancel a PENDING or CONFIRMED request** from the booking
-  page.
-- Booking, user and speaker lists are paginated. Booking detail pages share one cached
-  query between `generateMetadata` and the page, run independent queries in parallel
-  and select explicit columns (other users' profiles: `id, full_name, avatar_url`).
-  `ChatPanel` takes `bookingId` and `status` instead of the whole row.
-- Admin dashboard money tiles read `admin_money_totals()` and show a dash on failure.
-- Removed the unused `src/app/api/bookings/route.ts` (a drifting copy of
-  `createBooking`) and the dead `getBookingStatusColor/Label` helpers. Admin chat
-  messages no longer revalidate the booking page.
-- `buttonClasses()` styles links as buttons; hex colours and non-action orange replaced
-  with palette tokens per `docs/DESIGN.md`.
+- **Admin payment and payout pages call `requireRole("ADMIN")` themselves** instead of
+  relying only on the admin layout, since they read with the service-role key.
+- Payout status badges, money tiles, pagination and load-error states for the payment
+  surfaces are shared from `src/components/payments/`; tile colours use theme tokens.
+- The client payment page reads the booking and payment in parallel, and payment pages
+  select explicit columns.
 
 ### Fixed
 - **Security — database write paths hardened** (`20261005120000_security-hardening.sql`).
@@ -160,32 +153,36 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Two pre-existing `docs/DESIGN.md` violations: the speaker earnings "Upcoming" tile and
   the admin "Active Speakers" tile used `#FF5700`. A stat tile is not something you
   click, so orange never belonged on either.
-- **Admin could set any booking status from any other.** Admin writes run as the
-  service role, which the SQL trigger exempts, so PAID could be set with no money taken
-  and an unpaid CONFIRMED booking could be completed, releasing a payout.
-  `adminUpdateBookingStatus` now enforces `ADMIN_TRANSITIONS` with a conditional update
-  (0 rows = conflict); PAID -> CANCELLED must go through the refund path. The booking
-  page only offers allowed transitions.
-- **Cancelling a booking left its checkout open.** `cancelBooking` now marks the
-  booking's CREATED/PENDING payments CANCELLED, so a cancelled booking cannot be paid.
-- **Speaker and client status writes could overwrite a concurrent change** (e.g. the
-  payment webhook flipping a booking to PAID). Writes are now conditional on the
-  status that was validated; completing a PAID booking is refused before the event
-  date (SAST).
-- **Status buttons failed silently.** Accept/decline, confirm/complete/cancel,
-  make/revoke admin and activate/deactivate now use `ActionButton`, which shows a
-  pending state and announces the action's error.
-- **"Today" was the UTC date.** Booking date validation and the booking form's minimum
-  date use the Johannesburg date; chat timestamps are SAST 24-hour.
-- **Dashboard counts ignored PAID bookings** (client "Active Bookings", speaker
-  "Confirmed Events"); the speaker earnings tile showed the gross fee instead of net
-  payouts; the admin bookings filter missed statuses.
-- Admin pages each call `requireRole("ADMIN")`; admin action inputs are validated with
-  zod; `adminCreateSpeaker` reports partial failures; raw database messages are logged,
-  not shown (`toUserError`).
-- Accessibility: AddSpeakerModal has dialog semantics, Escape and a labelled close;
-  form inputs are labelled; errors use `role="alert"`; the chat log is a polite live
-  region; filter chips set `aria-current`; links are no longer wrapped around buttons.
+- **Yoco webhook acknowledged failures as success.** supabase-js returns `{ error }`
+  rather than throwing, so a failed payment lookup read as "not found", a failed
+  `record_successful_payment` call returned 200 "applied", and a failed processed-mark
+  was ignored. Every step now fails into a 500 with the event left unprocessed, so Yoco
+  retries; a dedupe insert failure other than a unique violation is treated as transient.
+- **Webhook recorded money on events that do not mean money arrived.** Only
+  `payment.succeeded` is recorded now (`payment.created` and `checkout.completed` are
+  stored and ignored), and a test-mode event on a live `sk_live_` key is acknowledged
+  but never recorded.
+- **A client could pay twice while a payment was under review.** `NEEDS_REVIEW` now
+  blocks a new checkout and the payment panel and result page say the payment is being
+  reviewed.
+- **Payment rows could get stuck in `CREATED`,** blocking the booking from ever being
+  paid. The return URL is resolved before the row is inserted, any failure after the
+  insert marks the row `FAILED`, and a `CREATED` row with no checkout older than 10
+  minutes is retired on the next attempt.
+- **Admin payout and refund actions could race.** Mark-paid, hold and the refund's
+  payout update are now conditional updates (0 rows = "This payout changed — refresh and
+  try again"). A refund is refused once the speaker has been paid, a pending refund puts
+  the payout `ON_HOLD`, and payouts created before the speaker added bank details are no
+  longer unpayable: mark-paid freezes the speaker's current details onto them.
+- **Admin money tiles were summed over a truncated list.** `/admin/payments` and
+  `/admin/payouts` tiles now come from the `admin_money_totals()` RPC, lists are paginated
+  (`?page=`), and a failed query shows an error instead of "Everything reconciles" or an
+  empty queue.
+- **Speaker "Available" included payouts still inside the 7-day hold window.** Those now
+  count as in escrow, and every speaker earnings figure is a net payout.
+- Payment surfaces no longer return raw database error messages to users, the payout
+  form's Bank and Account type selects are properly labelled, and the client payment page
+  no longer nests a button inside a link.
 
 
 ### Changed

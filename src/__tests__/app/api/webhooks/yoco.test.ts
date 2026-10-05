@@ -104,6 +104,7 @@ function stubRpc(result: Record<string, unknown>) {
 beforeEach(() => {
   resetSupabaseState();
   process.env.YOCO_WEBHOOK_SECRET = SECRET;
+  delete process.env.YOCO_SECRET_KEY;
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -303,6 +304,137 @@ describe("POST /api/webhooks/yoco — transient failure", () => {
     const response = await POST(request(succeededEvent()));
 
     expect(response.status).toBe(500);
+  });
+});
+
+describe("POST /api/webhooks/yoco — returned Supabase errors", () => {
+  // supabase-js reports failures by RETURNING { error }, not by throwing. A
+  // route that only catches throws treats every returned error as success.
+
+  function webhookUpdates() {
+    return supabaseState.writes.filter((w) => w.table === "webhook_events" && w.op === "update");
+  }
+
+  it("returns 500 and does not mark processed when the payment lookup errors", async () => {
+    stubFreshEvent();
+    supabaseState.responders.payments = () => ({
+      data: null,
+      error: { code: "57014", message: "statement timeout" },
+    });
+    stubRpc({ applied: true });
+
+    const response = await POST(request(succeededEvent()));
+
+    expect(response.status).toBe(500);
+    expect(supabaseState.rpcCalls).toHaveLength(0);
+    expect(webhookUpdates()).toHaveLength(0);
+  });
+
+  it("returns 500 and does not mark processed when the ledger RPC returns an error", async () => {
+    stubFreshEvent();
+    stubPaymentLookup({ id: PAYMENT_ID, booking_id: BOOKING_ID, status: "PENDING" });
+    supabaseState.rpcResponders.record_successful_payment = () => ({
+      data: null,
+      error: { code: "40001", message: "could not serialize access" },
+    });
+
+    const response = await POST(request(succeededEvent()));
+
+    expect(response.status).toBe(500);
+    expect(webhookUpdates()).toHaveLength(0);
+  });
+
+  it("returns 500 when marking the event processed fails", async () => {
+    supabaseState.responders.webhook_events = (state: QueryState) => {
+      if (state.op === "insert") return { data: { id: "we_1" }, error: null };
+      if (state.op === "update") return { data: null, error: { code: "08006", message: "gone" } };
+      return { data: null, error: null };
+    };
+    stubPaymentLookup({ id: PAYMENT_ID, booking_id: BOOKING_ID, status: "PENDING" });
+    stubRpc({ applied: true });
+
+    const response = await POST(request(succeededEvent()));
+
+    expect(response.status).toBe(500);
+  });
+
+  it("treats a dedupe insert failure other than a unique violation as transient", async () => {
+    supabaseState.responders.webhook_events = (state: QueryState) => {
+      if (state.op === "insert") {
+        return { data: null, error: { code: "08006", message: "connection failure" } };
+      }
+      return { data: null, error: null };
+    };
+    stubPaymentLookup({ id: PAYMENT_ID, booking_id: BOOKING_ID, status: "PENDING" });
+    stubRpc({ applied: true });
+
+    const response = await POST(request(succeededEvent()));
+
+    expect(response.status).toBe(500);
+    expect(supabaseState.rpcCalls).toHaveLength(0);
+  });
+
+  it("returns 500 when reading back a duplicate event errors", async () => {
+    supabaseState.responders.webhook_events = (state: QueryState) => {
+      if (state.op === "insert") {
+        return { data: null, error: { code: "23505", message: "duplicate key" } };
+      }
+      return { data: null, error: { code: "57014", message: "statement timeout" } };
+    };
+    stubPaymentLookup({ id: PAYMENT_ID, booking_id: BOOKING_ID, status: "PENDING" });
+    stubRpc({ applied: true });
+
+    const response = await POST(request(succeededEvent()));
+
+    expect(response.status).toBe(500);
+    expect(supabaseState.rpcCalls).toHaveLength(0);
+  });
+});
+
+describe("POST /api/webhooks/yoco — which events record money", () => {
+  // Only payment.succeeded means money arrived. payment.created and
+  // checkout.completed fire before (or without) a captured payment.
+  it.each(["payment.created", "checkout.completed"])(
+    "does not record a payment for %s",
+    async (type) => {
+      stubFreshEvent();
+      stubPaymentLookup({ id: PAYMENT_ID, booking_id: BOOKING_ID, status: "PENDING" });
+      stubRpc({ applied: true });
+
+      const response = await POST(request(succeededEvent({ type })));
+
+      expect(response.status).toBe(200);
+      expect(supabaseState.rpcCalls).toHaveLength(0);
+    }
+  );
+
+  it("refuses to record a test-mode payment against a live secret key", async () => {
+    process.env.YOCO_SECRET_KEY = "sk_live_abc";
+    stubFreshEvent();
+    stubPaymentLookup({ id: PAYMENT_ID, booking_id: BOOKING_ID, status: "PENDING" });
+    stubRpc({ applied: true });
+
+    const response = await POST(request(succeededEvent({ payload: { mode: "test" } })));
+
+    expect(response.status).toBe(200);
+    expect(supabaseState.rpcCalls).toHaveLength(0);
+    const update = supabaseState.writes.find(
+      (w) => w.table === "webhook_events" && w.op === "update"
+    );
+    expect(update?.payload.processing_error).toBe("test_mode_on_live_key");
+    expect(update?.payload.processed_at).toBeTruthy();
+  });
+
+  it("records a test-mode payment when the configured key is a test key", async () => {
+    process.env.YOCO_SECRET_KEY = "sk_test_abc";
+    stubFreshEvent();
+    stubPaymentLookup({ id: PAYMENT_ID, booking_id: BOOKING_ID, status: "PENDING" });
+    stubRpc({ applied: true });
+
+    const response = await POST(request(succeededEvent({ payload: { mode: "test" } })));
+
+    expect(response.status).toBe(200);
+    expect(supabaseState.rpcCalls).toHaveLength(1);
   });
 });
 

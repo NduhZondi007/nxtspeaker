@@ -24,6 +24,11 @@ export interface PayoutQueueRow {
     branch_code?: string;
     account_type?: string;
   } | null;
+  /**
+   * True when `bank` is the speaker's current details rather than a frozen
+   * snapshot. Recording the payout freezes these onto it.
+   */
+  bankIsCurrent?: boolean;
 }
 
 interface PayoutQueueProps {
@@ -123,7 +128,7 @@ export function PayoutQueue({ rows, onMarkPaid }: PayoutQueueProps) {
           {rows.length} payout{rows.length === 1 ? "" : "s"}
         </p>
         <Button variant="outline" size="sm" onClick={copyBatch}>
-          <Copy size={13} className="mr-1.5" /> Copy EFT batch
+          <Copy size={13} className="mr-1.5" aria-hidden="true" /> Copy EFT batch
         </Button>
       </div>
 
@@ -156,11 +161,20 @@ export function PayoutQueue({ rows, onMarkPaid }: PayoutQueueProps) {
                         className="text-muted hover:text-primary transition-colors"
                         aria-label={isRevealed ? "Hide account number" : "Show account number"}
                       >
-                        {isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+                        {isRevealed ? (
+                          <EyeOff size={13} aria-hidden="true" />
+                        ) : (
+                          <Eye size={13} aria-hidden="true" />
+                        )}
                       </button>
                       <span className="text-xs text-muted">
                         {row.bank?.bank_name} · {row.bank?.branch_code}
                       </span>
+                      {row.bankIsCurrent && (
+                        <span className="text-xs text-muted">
+                          · current details, frozen when recorded
+                        </span>
+                      )}
                     </div>
                   ) : (
                     <p className="text-xs text-danger mt-2">
@@ -241,7 +255,7 @@ export function PayoutQueue({ rows, onMarkPaid }: PayoutQueueProps) {
               <Button variant="gold" onClick={submit} loading={pending}>
                 Record as paid
               </Button>
-              <Button variant="ghost" onClick={() => setActive(null)}>
+              <Button variant="ghost" onClick={() => setActive(null)} disabled={pending}>
                 Cancel
               </Button>
             </div>
