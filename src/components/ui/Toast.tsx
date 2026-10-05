@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { CheckCircle, XCircle, AlertCircle, Info, X } from "lucide-react";
 
 type ToastType = "success" | "error" | "warning" | "info";
@@ -50,10 +50,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const warning = useCallback((title: string, message?: string) => toast({ type: "warning", title, message }), [toast]);
   const info    = useCallback((title: string, message?: string) => toast({ type: "info",    title, message }), [toast]);
 
+  const value = useMemo<ToastContextValue>(
+    () => ({ toast, success, error, warning, info }),
+    [toast, success, error, warning, info]
+  );
+
   return (
-    <ToastContext.Provider value={{ toast, success, error, warning, info }}>
+    <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[100] flex flex-col gap-3 pointer-events-none w-[calc(100vw-2rem)] sm:w-80">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="false"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[100] flex flex-col gap-3 pointer-events-none w-[calc(100vw-2rem)] sm:w-80"
+      >
         {toasts.map((t) => {
           const { icon: Icon, color } = typeConfig[t.type];
           return (
@@ -61,16 +71,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               key={t.id}
               className="pointer-events-auto bg-white border border-line rounded-[8px] shadow-xl p-4 flex gap-3 animate-[toast-enter_0.3s_ease-out]"
             >
-              <Icon size={20} className={`shrink-0 mt-0.5 ${color}`} />
+              <Icon size={20} aria-hidden="true" className={`shrink-0 mt-0.5 ${color}`} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-ink">{t.title}</p>
                 {t.message && <p className="text-xs text-muted mt-0.5">{t.message}</p>}
               </div>
               <button
+                type="button"
                 onClick={() => dismiss(t.id)}
+                aria-label="Dismiss notification"
                 className="shrink-0 text-muted hover:text-primary transition-colors"
               >
-                <X size={16} />
+                <X size={16} aria-hidden="true" />
               </button>
             </div>
           );
