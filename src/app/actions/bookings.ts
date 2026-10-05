@@ -12,6 +12,7 @@ import {
   todayInSAST,
   validateBookingDates,
 } from "@/lib/utils/booking";
+import { withPublicIdentity } from "@/lib/data/speakers";
 import { isSpeakerListable } from "@/lib/utils/profile-completeness";
 import type { BookingStatus, EventFormat, SpeakerProfile } from "@/lib/types/database";
 
@@ -89,7 +90,7 @@ export async function createBooking(input: CreateBookingInput) {
     supabase
       .from("speaker_profiles")
       .select(
-        "speaking_fee_zar, status, bio, expertise, languages, location, photo_urls, profiles(avatar_url)"
+        "user_id, speaking_fee_zar, status, bio, expertise, languages, location, photo_urls, display_name, display_avatar_url"
       )
       .eq("id", booking.speaker_id)
       .eq("status", "ACTIVE")
@@ -107,7 +108,7 @@ export async function createBooking(input: CreateBookingInput) {
   // A speaker hidden from discovery for an incomplete profile must not be
   // bookable through a stale link or a hand-crafted request either — the same
   // rule that governs the listing governs the booking.
-  if (!isSpeakerListable(speaker as unknown as Partial<SpeakerProfile>)) {
+  if (!isSpeakerListable(withPublicIdentity(speaker as Partial<SpeakerProfile>))) {
     return { error: "This speaker is not currently accepting bookings" };
   }
 

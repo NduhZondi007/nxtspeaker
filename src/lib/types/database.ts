@@ -62,6 +62,10 @@ export interface SpeakerProfile {
   updated_at: string;
   // Joined
   profiles?: Profile;
+  /** Public copy of profiles.full_name, kept in sync by the database. */
+  display_name?: string | null;
+  /** Public copy of profiles.avatar_url, kept in sync by the database. */
+  display_avatar_url?: string | null;
 }
 
 export interface HospitalityRider {

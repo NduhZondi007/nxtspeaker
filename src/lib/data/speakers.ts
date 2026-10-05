@@ -47,8 +47,28 @@ export const PUBLIC_SPEAKER_COLUMNS = [
   "status",
   "created_at",
   "updated_at",
-  `profiles(${PUBLIC_PROFILE_COLUMNS})`,
+  // Name and photo come from speaker_profiles' own public copy, never from a
+  // join to `profiles`: reading other users' profiles rows is what exposed
+  // every speaker's email and phone (audit H2, 20261005140000).
+  "display_name",
+  "display_avatar_url",
 ].join(", ");
+
+/**
+ * Gives a speaker row the `profiles` shape the cards and listability rule
+ * read, built from the public columns on speaker_profiles. The identity is
+ * deliberately minimal: there is no email, phone or company to leak.
+ */
+export function withPublicIdentity<T extends Partial<SpeakerProfile>>(row: T): T {
+  return {
+    ...row,
+    profiles: {
+      id: row.user_id,
+      full_name: row.display_name ?? "",
+      avatar_url: row.display_avatar_url ?? null,
+    } as SpeakerProfile["profiles"],
+  };
+}
 
 const PUBLIC_REVIEW_COLUMNS = [
   "id",
@@ -93,7 +113,7 @@ export async function getSpeakers(
 ): Promise<SpeakerPage> {
   // The parts of isSpeakerListable that live on speaker_profiles are pushed
   // into SQL so incomplete rows are never downloaded. isSpeakerListable stays
-  // the final word below (it also covers the avatar on the joined profile).
+  // the final word below (it also covers the public avatar).
   let query = supabase
     .from("speaker_profiles")
     .select(PUBLIC_SPEAKER_COLUMNS)
@@ -101,6 +121,7 @@ export async function getSpeakers(
     .gt("speaking_fee_zar", 0)
     .not("bio", "is", null)
     .not("location", "is", null)
+    .not("display_avatar_url", "is", null)
     .not("expertise", "eq", "{}")
     .not("languages", "eq", "{}")
     .not("photo_urls", "eq", "{}");
@@ -133,7 +154,7 @@ export async function getSpeakers(
     return { data: [], error: error.message, hasMore: false };
   }
 
-  const raw = (data ?? []) as unknown as SpeakerProfile[];
+  const raw = ((data ?? []) as unknown as SpeakerProfile[]).map(withPublicIdentity);
 
   // Only fully-complete profiles are shown to clients. Sharing one predicate
   // with the speaker's own progress bar is what stops the two from

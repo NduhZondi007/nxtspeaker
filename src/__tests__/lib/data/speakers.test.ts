@@ -5,6 +5,7 @@ import {
   filterBySearch,
   DEFAULT_SPEAKER_FILTERS,
   SPEAKER_PAGE_SIZE,
+  withPublicIdentity,
 } from "@/lib/data/speakers";
 import type { SpeakerProfile } from "@/lib/types/database";
 import type { FilterState } from "@/components/speakers/SpeakerFilters";
@@ -34,6 +35,9 @@ function makeSpeaker(overrides: Partial<SpeakerProfile> = {}): SpeakerProfile {
     status: "ACTIVE",
     created_at: "2026-01-01",
     updated_at: "2026-01-01",
+    // The public copy the database keeps on speaker_profiles (20261005140000).
+    display_name: "Jane Doe",
+    display_avatar_url: "https://cdn.example/avatar.png",
     profiles: {
       id: "user-1",
       role: "SPEAKER",
@@ -95,7 +99,8 @@ describe("getSpeakers", () => {
     expect(from).toHaveBeenCalledWith("speaker_profiles");
     expect(query.eq).toHaveBeenCalledWith("status", "ACTIVE");
     expect(query.order).toHaveBeenCalledWith("avg_rating", { ascending: false });
-    expect(result).toEqual({ data: [speaker], error: null, hasMore: false });
+    // The row comes back with only its public identity — no email or phone.
+    expect(result).toEqual({ data: [withPublicIdentity(speaker)], error: null, hasMore: false });
   });
 
   it("applies fee, availability, format and expertise filters", async () => {
@@ -146,10 +151,7 @@ describe("getSpeakers / profile-completeness gate", () => {
       makeSpeaker({ id: "no-location", location: null }),
       makeSpeaker({ id: "no-fee", speaking_fee_zar: 0 }),
       makeSpeaker({ id: "no-portfolio-photos", photo_urls: [] }),
-      makeSpeaker({
-        id: "no-avatar",
-        profiles: { ...makeSpeaker().profiles!, avatar_url: null },
-      }),
+      makeSpeaker({ id: "no-avatar", display_avatar_url: null }),
     ];
     const { supabase } = makeQueryMock({ data: incomplete, error: null });
 
@@ -202,8 +204,27 @@ describe("getSpeakers / column exposure", () => {
 
     const columns = String(query.select.mock.calls[0][0]);
     expect(columns).not.toContain("*");
-    expect(columns).toMatch(/profiles\(id, full_name, avatar_url\)/);
+    expect(columns).not.toContain("profiles(");
+    expect(columns).toContain("display_name");
+    expect(columns).toContain("display_avatar_url");
     expect(columns).not.toMatch(/email|phone|company/);
+  });
+
+  // Discovery must not depend on reading other users' `profiles` rows: that
+  // access is what exposed every speaker's email and phone (audit H2).
+  it("builds the card identity from speaker_profiles' public copy", async () => {
+    const row = makeSpeaker({ display_name: "Thandi Mokoena" });
+    delete (row as Partial<SpeakerProfile>).profiles;
+    const { supabase } = makeQueryMock({ data: [row], error: null });
+
+    const { data } = await getSpeakers(supabase, DEFAULT_SPEAKER_FILTERS);
+
+    expect(data[0].profiles).toMatchObject({
+      id: "user-1",
+      full_name: "Thandi Mokoena",
+      avatar_url: "https://cdn.example/avatar.png",
+    });
+    expect(data[0].profiles).not.toHaveProperty("email");
   });
 });
 
@@ -216,6 +237,7 @@ describe("getSpeakers / SQL pre-filter and paging", () => {
     expect(query.gt).toHaveBeenCalledWith("speaking_fee_zar", 0);
     expect(query.not).toHaveBeenCalledWith("bio", "is", null);
     expect(query.not).toHaveBeenCalledWith("location", "is", null);
+    expect(query.not).toHaveBeenCalledWith("display_avatar_url", "is", null);
     for (const column of ["expertise", "languages", "photo_urls"]) {
       expect(query.not).toHaveBeenCalledWith(column, "eq", "{}");
     }

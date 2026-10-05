@@ -21,19 +21,7 @@ INSERT INTO public.hospitality_riders (speaker_id)
 SELECT tests.speaker_profile_id('speaker')
 WHERE NOT EXISTS (SELECT 1 FROM public.hospitality_riders WHERE speaker_id = tests.speaker_profile_id('speaker'));
 
--- One helper per (user, query, expected count).
-CREATE OR REPLACE FUNCTION tests.sees(p_user TEXT, p_what TEXT, p_sql TEXT, p_expected INT)
-RETURNS VOID LANGUAGE plpgsql AS $$
-DECLARE n INT;
-BEGIN
-  PERFORM tests.login(p_user);
-  EXECUTE 'SELECT count(*) FROM (' || p_sql || ') q' INTO n;
-  EXECUTE 'RESET ROLE';
-  IF n <> p_expected THEN
-    RAISE EXCEPTION 'FAIL - % sees % : expected %, got %', p_user, p_what, p_expected, n;
-  END IF;
-  RAISE NOTICE 'ok   - % sees % = %', p_user, p_what, n;
-END $$;
+-- tests.sees() lives in 01_helpers_and_fixtures.sql.
 
 -- ── bookings ─────────────────────────────────────────────────────────────────
 BEGIN;

@@ -125,6 +125,17 @@ Versions follow [Semantic Versioning](https://semver.org/).
   select explicit columns.
 
 ### Fixed
+- **Security — speakers' contact details were readable by any signed-in user**
+  (audit H2). The policy "Authenticated users can view speaker profiles" exposed every
+  ACTIVE speaker's full `profiles` row (email, phone, company) to anyone with an account.
+  Discovery, the client dashboard and `createBooking` now read the public name and photo
+  that `speaker_profiles` carries itself (`display_name`, `display_avatar_url`, kept in
+  sync by trigger), and `20261005160000` drops the policy. Speakers, their booking
+  counterparties and admins keep access. **Deploy the app before applying 20261005160000.**
+- **Columns typed as always-present could be NULL** (`20261005150000`). Speaker arrays,
+  flags and stats, booking status/duration, and several timestamps had defaults but no
+  `NOT NULL`, so a stray NULL crashed pages (e.g. the admin speakers list). Backfilled and
+  enforced, so `src/lib/types/database.ts` is now accurate.
 - **Security — database write paths hardened** (`20261005120000_security-hardening.sql`).
   Found by the 2026-10-05 audit; each is now covered by `supabase/tests/10_security.test.sql`.
   - A client could insert a booking already at `PAID`/`COMPLETED` at any fee straight
