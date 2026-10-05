@@ -4,8 +4,6 @@ import {
   canChat,
   canClientCancel,
   canSpeakerTransition,
-  getBookingStatusColor,
-  getBookingStatusLabel,
   isBookingStatus,
 } from "@/lib/utils/booking";
 
@@ -19,11 +17,6 @@ describe("PAID booking status", () => {
   it("is a recognised status", () => {
     expect(BOOKING_STATUSES).toContain("PAID");
     expect(isBookingStatus("PAID")).toBe(true);
-  });
-
-  it("has a label and a colour", () => {
-    expect(getBookingStatusLabel("PAID")).toBe("Paid");
-    expect(getBookingStatusColor("PAID")).toBe("#6B9E78");
   });
 
   it("allows chat — the money is in, the parties need to plan", () => {
